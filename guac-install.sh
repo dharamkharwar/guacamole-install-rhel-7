@@ -32,7 +32,7 @@ SCRIPT_BUILD="2020_07_16" # Scripts Date for last modified as "yyyy_mm_dd"
 ADM_POC="Local Admin, admin@admin.com"  # Point of contact for the Guac server admin
 
 # Versions
-GUAC_STBL_VER="1.2.0" # Latest stable version of Guac from https://guacamole.apache.org/releases/
+GUAC_STBL_VER="1.3.0" # Latest stable version of Guac from https://guacamole.apache.org/releases/
 MYSQL_CON_VER="8.0.21" # Working stable release of MySQL Connecter J
 MAVEN_VER="3.6.3" # Latest stable version of Apache Maven
 
@@ -352,7 +352,7 @@ INSTALL_LDAP=false
 SECURE_LDAP=false
 INSTALL_RADIUS=false
 INSTALL_CAS=false
-INSTALL_OPENID=false
+INSTALL_OPENID=true
 
 # Allows selection of an authentication method in addition to MariaDB/Database or just MariaDB
 # which is used to store connection and user meta data for all other methods
@@ -368,7 +368,7 @@ do
 		"MariaDB Database"|"") PRIME_AUTH_TYPE="MariaDB"; break;;
 		"LDAP(S)") PRIME_AUTH_TYPE="LDAP"; LDAP_ext_menu; break;;
 		# "RADIUS") PRIME_AUTH_TYPE="RADIUS"; Radius_ext_menu; break;;
-		# "OpenID") PRIME_AUTH_TYPE="OpenID"; OpenID_ext_menu; break;;
+		"OpenID") PRIME_AUTH_TYPE="OpenID"; OpenID_ext_menu; break;;
 		# "CAS") PRIME_AUTH_TYPE="CAS"; CAS_ext_menu; break;;
 		* ) echo "${Green} ${REPLY} is not a valid option, enter the number representing the desired primary authentication method.";;
 		esac
@@ -534,7 +534,7 @@ sleep 3
 
 ######  OPENID MENU  #################################################
 OpenID_ext_menu () {
-INSTALL_OPENID=false
+INSTALL_OPENID=true
 SUB_MENU_TITLE="OpenID Extension Menu"
 
 menu_header
@@ -1051,7 +1051,7 @@ s_echo "n" "${Reset}-Installing required packages...    "; spinner
 
 # Additional packages required by git
 if [ $GUAC_SOURCE == "Git" ]; then
-	{ yum install -y git libtool java-1.8.0-openjdk-devel; } &
+	{ yum install -y git libtool java-11-openjdk-devel; } &
 	s_echo "n" "-Installing packages required for git...    "; spinner
 
 	#Install Maven
