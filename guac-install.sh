@@ -1057,9 +1057,57 @@ s_echo "n" "${Reset}-Removing unnecessary packages...    "; spinner
 
 # Install Required Packages
 {
-	yum install -y java-11-openjdk-devel cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server nginx openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot tomcat uuid-devel
+	yum install -y java-11-openjdk-devel cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server nginx openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot uuid-devel
 } &
 s_echo "n" "${Reset}-Installing required packages...    "; spinner
+
+# Install Tomcat
+{
+cat /etc/passwd | grep tomcat >/dev/null 2>&1
+if [ $? -eq 0 ] ; then
+   echo "tomcat user already exists"
+else
+   useradd -m -U -d /opt/tomcat -s /bin/false tomcat
+fi
+: '
+cd /tmp
+wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.62/bin/apache-tomcat-9.0.62.tar.gz
+tar -xf apache-tomcat-9.0.62.tar.gz
+mv apache-tomcat-9.0.62 /opt/tomcat/
+ln -s /opt/tomcat/apache-tomcat-9.0.62 /opt/tomcat/latest
+chown -R tomcat: /opt/tomcat
+chmod +x /opt/tomcat/latest/bin/*.sh
+cat <<EOF >/etc/systemd/system/tomcat.service 
+[Unit]
+Description=Tomcat 9 servlet container
+After=network.target
+
+[Service]
+Type=forking
+
+User=tomcat
+Group=tomcat
+
+Environment="JAVA_HOME=/usr/lib/jvm/jre"
+Environment="JAVA_OPTS=-Djava.security.egd=file:///dev/urandom"
+
+Environment="CATALINA_BASE=/opt/tomcat/latest"
+Environment="CATALINA_HOME=/opt/tomcat/latest"
+Environment="CATALINA_PID=/opt/tomcat/latest/temp/tomcat.pid"
+Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+
+ExecStart=/opt/tomcat/latest/bin/startup.sh
+ExecStop=/opt/tomcat/latest/bin/shutdown.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+'
+systemctl daemon-reload
+systemctl enable tomcat
+systemctl start tomcat ;} &
+s_echo "n" "${Reset}-Installing tomcat...    "; spinner
+
 
 # Additional packages required by git
 if [ $GUAC_SOURCE == "Git" ]; then
@@ -1090,6 +1138,7 @@ createdirs () {
 	mkdir -vp ${INSTALL_DIR}{client,selinux}
 	mkdir -vp ${LIB_DIR}{extensions,lib}
 	mkdir -vp /usr/share/tomcat/.guacamole/
+	mkdir -vp /opt/tomcat
 } &
 s_echo "y" "${Bold}Creating Required Directories...    "; spinner
 
@@ -1218,7 +1267,7 @@ s_echo "n" "${Reset}-Generating Guacamole configuration file...    "; spinner
 
 # Create Required Symlinks for Guacamole
 {
-	ln -vfs ${LIB_DIR}guacamole.war /var/lib/tomcat/webapps
+	ln -vfs ${LIB_DIR}guacamole.war /opt/tomcat/latest/webapps
 	ln -vfs /etc/guacamole/${GUAC_CONF} /usr/share/tomcat/.guacamole/
 	ln -vfs ${LIB_DIR}lib/ /usr/share/tomcat/.guacamole/
 	ln -vfs ${LIB_DIR}extensions/ /usr/share/tomcat/.guacamole/
@@ -1324,7 +1373,7 @@ s_echo "y" "${Bold}Setup Tomcat Server"
 	sed -i '92i <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true" \
 							maxThreads="150" scheme="https" secure="true" \
 							clientAuth="false" sslProtocol="TLS" \
-							keystoreFile="/var/lib/tomcat/webapps/.keystore" \
+							keystoreFile="/opt/tomcat/latest/webapps/.keystore" \
 							keystorePass="JKS_GUAC_PASSWD" \
 							URIEncoding="UTF-8" />' /etc/tomcat/server.xml
 	sed -i "s/JKS_GUAC_PASSWD/${JKS_GUAC_PASSWD}/g" /etc/tomcat/server.xml
@@ -1352,7 +1401,7 @@ s_echo "n" "-Set RemoteIpValve in Tomcat configuration...    "; spinner
 s_echo "n" "-Set ErrorReportingVavle in Tomcat configuration...    "; spinner
 
 # Java KeyStore Setup
-{ keytool -genkey -alias Guacamole -keyalg RSA -keysize ${JKSTORE_KEY_SIZE} -keystore /var/lib/tomcat/webapps/.keystore -storepass ${JKS_GUAC_PASSWD} -keypass ${JKS_GUAC_PASSWD} -noprompt -dname "CN='', OU='', O='', L='', S='', C=''"; } &
+{ keytool -genkey -alias Guacamole -keyalg RSA -keysize ${JKSTORE_KEY_SIZE} -keystore /opt/tomcat/latest/webapps/.keystore -storepass ${JKS_GUAC_PASSWD} -keypass ${JKS_GUAC_PASSWD} -noprompt -dname "CN='', OU='', O='', L='', S='', C=''"; } &
 s_echo "y" "${Bold}Configuring the Java KeyStore...    "; spinner
 
 # Enable/Start Tomcat and Guacamole Services
