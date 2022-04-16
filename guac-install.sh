@@ -1020,6 +1020,14 @@ s_echo "n" "${Reset}-Installing Nginx repo...    "; spinner
 } &
 s_echo "n" "-Installing libjpeg-turbo repo...    "; spinner
 
+# Install MariaDB Repo
+{ yum install wget -y
+wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
+chmod +x mariadb_repo_setup
+./mariadb_repo_setup
+rm mariadb_repo_setup ;} &
+s_echo "n" "${Reset}-Installing MariaDB repo...    "; spinner
+
 # Enable repos needed if using RHEL
 if [ $OS_NAME == "RHEL" ] ; then
 	{ subscription-manager repos --enable "rhel-*-optional-rpms" --enable "rhel-*-extras-rpms"; } &
@@ -1043,12 +1051,9 @@ baseinstall
 baseinstall () {
 s_echo "y" "${Bold}Installing Required Dependencies"
 
-# Install MariaDB Repo
-yum install wget
-wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
-chmod +x mariadb_repo_setup
-./mariadb_repo_setup
-rm mariadb_repo_setup
+# Remove unnecessary packages
+{ yum remove java-1.8.0-openjdk-headless java-1.8.0-openjdk -y ;} &
+s_echo "n" "${Reset}-Removing unnecessary packages...    "; spinner
 
 # Install Required Packages
 {
@@ -1231,9 +1236,19 @@ fi
 # Setup guacd user, group and permissions
 {
 	# Create a user and group for guacd with a home folder but no login
-	groupadd ${GUACD_USER}
+	cat /etc/group | grep ${GUACD_USER} >/dev/null 2>&1
+        if [ $? -eq 0 ] ; then
+                echo "GUACD group already exists"
+        else
+                groupadd ${GUACD_USER}
+        fi
 	# The guacd user is created as a service account, no login but does get a home dir as needed by freerdp
-	useradd -r ${GUACD_USER} -m -s "/bin/nologin" -g ${GUACD_USER} -c ${GUACD_USER}
+	cat /etc/passwd | grep ${GUACD_USER} >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+    		echo "GUACD user already exists"
+	else
+    		useradd -r ${GUACD_USER} -m -s "/bin/nologin" -g ${GUACD_USER} -c ${GUACD_USER}
+	fi
 
 	# Set the user that runs the guacd service
 	sed -i "s/User=daemon/User=${GUACD_USER}/g" /etc/systemd/system/guacd.service
@@ -1260,7 +1275,7 @@ s_echo "n" "-Setting root password for MariaDB...    "; spinner
 
 # Run MariaDB/MySQL Secure Install
 {
-	mysql_secure_installation <<EOF
+	mariadb-secure-installation <<EOF
 ${MYSQL_PASSWD}
 n
 y
@@ -1293,10 +1308,10 @@ s_echo "n" "-Creating Guacamole Tables...    "; spinner
 # Fixes timezone issues when using MySQLConnectorJ 8.x or geater
 {
 	mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql -u root mysql -p${MYSQL_PASSWD}
-	MY_CNF_LINE=`grep -n "\[mysqld\]" /etc/my.cnf | grep -o '^[0-9]*'`
+	MY_CNF_LINE=`grep -n "\[mysqld\]" /etc/my.cnf.d/server.cnf | grep -o '^[0-9]*'`
 	MY_CNF_LINE=$((MY_CNF_LINE + 1 ))
 	MY_TZ=`readlink /etc/localtime | sed "s/.*\/usr\/share\/zoneinfo\///"`
-	sed -i "${MY_CNF_LINE}i default-time-zone='${MY_TZ}'" /etc/my.cnf
+	sed -i "${MY_CNF_LINE}i default-time-zone='${MY_TZ}'" /etc/my.cnf.d/server.cnf
 	systemctl restart mariadb
 } &
 s_echo "n" "-Setting Time Zone Database & Config...    "; spinner
