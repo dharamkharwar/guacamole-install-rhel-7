@@ -1043,15 +1043,22 @@ baseinstall
 baseinstall () {
 s_echo "y" "${Bold}Installing Required Dependencies"
 
+# Install MariaDB Repo
+yum install wget
+wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
+chmod +x mariadb_repo_setup
+./mariadb_repo_setup
+rm mariadb_repo_setup
+
 # Install Required Packages
 {
-	yum install -y cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server nginx openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot tomcat uuid-devel
+	yum install -y java-11-openjdk-devel cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server nginx openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot tomcat uuid-devel
 } &
 s_echo "n" "${Reset}-Installing required packages...    "; spinner
 
 # Additional packages required by git
 if [ $GUAC_SOURCE == "Git" ]; then
-	{ yum install -y git libtool java-11-openjdk-devel; } &
+	{ yum install -y git libtool; } &
 	s_echo "n" "-Installing packages required for git...    "; spinner
 
 	#Install Maven
@@ -1074,10 +1081,10 @@ createdirs
 createdirs () {
 {
 	rm -fr ${INSTALL_DIR}
-	mkdir -v /etc/guacamole
+	mkdir -vp /etc/guacamole
 	mkdir -vp ${INSTALL_DIR}{client,selinux}
 	mkdir -vp ${LIB_DIR}{extensions,lib}
-	mkdir -v /usr/share/tomcat/.guacamole/
+	mkdir -vp /usr/share/tomcat/.guacamole/
 } &
 s_echo "y" "${Bold}Creating Required Directories...    "; spinner
 
