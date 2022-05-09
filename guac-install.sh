@@ -54,13 +54,13 @@ JKS_GUAC_PASSWD_DEF="guacamole" # Default Java Keystore password
 JKS_CACERT_PASSWD_DEF="guacamole" # Default CACert Java Keystore password, used with LDAPS
 
 # Default OPENID Configuration
-OPENID_AUTH_ENDPOINT="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/auth" # Default OPENID Auth Endpoint
-OPENID_JKWS_ENDPOINT="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/certs" # Default OPENID JKWS Endpoint
-OPENID_ISSUER="http://localhost:8081/auth/realms/guacamole" # Default OPENID Issuer
-OPENID_CLIENT_ID="guacamole" # Default OPENID Client ID
-OPENID_REDIRECT_URI="http://localhost:8081/guacamole" # Default OPENID Redirect URI
-OPENID_CLAIM="email" # Default OPENID Username Claim Type
-OPENID_SCOPR="openid email profile" # Default OPENID Scope
+OPENID_AUTH_ENDPOINT_DEF="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/auth" # Default OPENID Auth Endpoint
+OPENID_JKWS_ENDPOINT_DEF="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/certs" # Default OPENID JKWS Endpoint
+OPENID_ISSUER_DEF="http://localhost:8081/auth/realms/guacamole" # Default OPENID Issuer
+OPENID_CLIENT_ID_DEF="guacamole" # Default OPENID Client ID
+OPENID_REDIRECT_URI_DEF="http://localhost:8081/guacamole" # Default OPENID Redirect URI
+OPENID_CLAIM_DEF="email" # Default OPENID Username Claim Type
+OPENID_SCOPE_DEF="openid email profile" # Default OPENID Scope
 
 # Misc
 GUACD_USER="guacd" # The user name and group of the user running the guacd service
@@ -581,11 +581,11 @@ SUB_MENU_TITLE="OpenID Extension Menu"
 
 menu_header
 
-echo "${Red} OpenID extension not currently available via this script."
+####o "${Red} CAS extension not currently available via this script."
 sleep 3
 }
 
-######  CUSTOM EXTENSION MENU  #######################################
+#  CUSTOM EXTENSION MENU  #######################################
 cust_ext_menu () {
 SUB_MENU_TITLE="Custom Extension Menu"
 
@@ -637,7 +637,7 @@ RET_SUM=false
 # List categories/menus to review or change
 echo "${Green} Select a category to review selections: ${Yellow}"
 PS3="${Green} Enter the number of the category to review: ${Yellow}"
-options=("Database" "Passwords" "SSL Cert Type" "Nginx" "Primary Authentication Extension" "2FA Extension" "Custom Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
+options=("Database" "OpenID" "Passwords" "SSL Cert Type" "Nginx" "Primary Authentication Extension" "2FA Extension" "Custom Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
 select opt in "${options[@]}"
 do
 	case $opt in

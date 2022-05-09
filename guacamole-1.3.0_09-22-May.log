@@ -1,0 +1,2 @@
+./guac-install.sh: line 2047: syntax error near unexpected token `}'
+./guac-install.sh: line 2047: `}'
