@@ -53,6 +53,15 @@ DB_PASSWD_DEF="guacamole" # Defualt database password
 JKS_GUAC_PASSWD_DEF="guacamole" # Default Java Keystore password
 JKS_CACERT_PASSWD_DEF="guacamole" # Default CACert Java Keystore password, used with LDAPS
 
+# Default OPENID Configuration
+OPENID_AUTH_ENDPOINT="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/auth" # Default OPENID Auth Endpoint
+OPENID_JKWS_ENDPOINT="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/certs" # Default OPENID JKWS Endpoint
+OPENID_ISSUER="http://localhost:8081/auth/realms/guacamole" # Default OPENID Issuer
+OPENID_CLIENT_ID="guacamole" # Default OPENID Client ID
+OPENID_REDIRECT_URI="http://localhost:8081/guacamole" # Default OPENID Redirect URI
+OPENID_CLAIM="email" # Default OPENID Username Claim Type
+OPENID_SCOPR="openid email profile" # Default OPENID Scope
+
 # Misc
 GUACD_USER="guacd" # The user name and group of the user running the guacd service
 GUAC_URIPATH_DEF="/" # Default URI for Guacamole
@@ -146,6 +155,10 @@ fi
 # JDBC Extension file name
 GUAC_JDBC="guacamole-auth-jdbc-${GUAC_VER}"
 
+
+# OPENID Extension file name
+GUAC_OPENID="guacamole-auth-openid-${GUAC_VER}"
+
 # LDAP extension file name
 GUAC_LDAP="guacamole-auth-ldap-${GUAC_VER}"
 
@@ -217,6 +230,35 @@ echo -n "${Green} Enter the Guacamole DB username (default ${DB_USER_DEF}): ${Ye
 echo -n "${Green} Enter the Java KeyStore key-size to use (default ${JKSTORE_KEY_SIZE_DEF}): ${Yellow}"
 	read JKSTORE_KEY_SIZE
 	JKSTORE_KEY_SIZE=${JKSTORE_KEY_SIZE:-${JKSTORE_KEY_SIZE_DEF}}
+}
+
+######  OPENID MENU  #######################################
+openid_menu () {
+SUB_MENU_TITLE="OPENID Menu"
+
+menu_header
+
+echo -n "${Green} Enter the OpenID Authorization Endpoint (default ${OPENID_AUTH_ENDPOINT_DEF}): ${Yellow}"
+        read OPENID_AUTH_ENDPOINT
+        OPENID_AUTH_ENDPOINT=${OPENID_AUTH_ENDPOINT:-${OPENID_AUTH_ENDPOINT_DEF}}
+echo -n "${Green} Enter the OpenID JKWS Endpoint (default ${OPENID_JKWS_ENDPOINT_DEF}): ${Yellow}"
+        read OPENID_JKWS_ENDPOINT
+        OPENID_JKWS_ENDPOINT=${OPENID_JKWS_ENDPOINT:-${OPENID_JKWS_ENDPOINT_DEF}}
+echo -n "${Green} Enter the OpenID Issuer (default ${OPENID_ISSUER_DEF}): ${Yellow}"
+        read OPENID_ISSUER
+        OPENID_ISSUER=${OPENID_ISSUER:-${OPENID_ISSUER_DEF}}
+echo -n "${Green} Enter the OpenID Client ID (default ${OPENID_CLIENT_ID_DEF}): ${Yellow}"
+        read OPENID_CLIENT_ID
+        OPENID_CLIENT_ID=${OPENID_CLIENT_ID:-${OPENID_CLIENT_ID_DEF}}
+echo -n "${Green} Enter the OpenID Redirect URI (default ${OPENID_REDIRECT_URI_DEF}): ${Yellow}"
+        read OPENID_REDIRECT_URI
+        OPENID_REDIRECT_URI=${OPENID_REDIRECT_URI:-${OPENID_REDIRECT_URI_DEF}}
+echo -n "${Green} Enter the OpenID Username Claim Type (default ${OPENID_CLAIM_DEF}): ${Yellow}"
+        read OPENID_CLAIM
+        OPENID_CLAIM=${OPENID_CLAIM:-${OPENID_CLAIM_DEF}}
+echo -n "${Green} Enter the OpenID Scope (default ${OPENID_SCOPE_DEF}): ${Yellow}"
+        read OPENID_SCOPE
+        OPENID_SCOPE=${OPENID_SCOPE:-${OPENID_SCOPE_DEF}}
 }
 
 ######  PASSWORDS MENU  ##############################################
@@ -600,6 +642,7 @@ select opt in "${options[@]}"
 do
 	case $opt in
 		"Database") sum_db; break;;
+		"OpenID") sum_openid; break;;
 		"Passwords") sum_pw; break;;
 		"SSL Cert Type") sum_ssl; break;;
 		"Nginx") sum_nginx; break;;
@@ -632,6 +675,33 @@ while true; do
 		[Nn]*|"" ) break;;
 		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
 	esac
+done
+
+sum_menu
+}
+
+######  OPENID SUMMARY  ############################################
+sum_openid () {
+SUB_MENU_TITLE="OPENID Summary"
+
+menu_header
+
+echo "${Green} OPENID Authorization Endpoint: ${Yellow}${OPENID_AUTH_ENDPOINT}"
+echo "${Green} OPENID JKWS Endpoint: ${Yellow}${OPENID_JKWS_ENDPOINT}"
+echo "${Green} OPENID Issuer: ${Yellow}${OPENID_ISSUER}"
+echo "${Green} OPENID Client ID: ${Yellow}${OPENID_CLIENT_ID}"
+echo "${Green} OPENID Redirect URI: ${Yellow}${OPENID_REDIRECT_URI}"
+echo "${Green} OPENID Username Claim Type: ${Yellow}${OPENID_CLAIM}"
+echo -e "${Green} OPENID Scope: ${Yellow}${OPENID_SCOPE}\n"
+
+while true; do
+        echo -n "${Green} Would you like to change these selections (default no)? ${Yellow}"
+        read yn
+        case $yn in
+                [Yy]* ) openid_menu; break;;
+                [Nn]*|"" ) break;;
+                * ) echo "${Green} Please enter yes or no. ${Yellow}";;
+        esac
 done
 
 sum_menu
@@ -843,6 +913,7 @@ sum_menu
 ######  MENU EXECUTION  ##############################################
 db_menu
 pw_menu
+openid_menu
 ssl_cert_type_menu
 nginx_menu
 prime_auth_ext_menu
@@ -1170,6 +1241,8 @@ else # Stable release
 	s_echo "n" "-Downloading Guacamole Client package for installation...    "; spinner
 	{ wget "${GUAC_URL}binary/${GUAC_JDBC}.tar.gz" -O ${GUAC_JDBC}.tar.gz; } &
 	s_echo "n" "-Downloading Guacamole JDBC Extension package for installation...    "; spinner
+        { wget "${GUAC_URL}binary/${GUAC_OPENID}.tar.gz" -O ${GUAC_OPENID}.tar.gz; } &
+        s_echo "n" "-Downloading Guacamole OPENID Extension package for installation...    "; spinner
 	downloadmysqlconn
 
 	# Decompress Guacamole Packages
@@ -1186,9 +1259,17 @@ else # Stable release
 		tar xzvf ${GUAC_JDBC}.tar.gz
 		rm -f ${GUAC_JDBC}.tar.gz
 		mv -v ${GUAC_JDBC} extension
-		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar ${LIB_DIR}extensions/
+		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
 	} &
 	s_echo "n" "-Decompressing Guacamole JDBC extension...    "; spinner
+
+        {
+                tar xzvf ${GUAC_OPENID}.tar.gz
+                rm -f ${GUAC_OPENID}.tar.gz
+                mv -v ${GUAC_OPENID} extension
+                mv -v extension/guacamole-auth-openid-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
+        } &
+        s_echo "n" "-Decompressing Guacamole OPENID extension...    "; spinner
 fi
 
 {
@@ -1255,6 +1336,14 @@ s_echo "y" "${Bold}Setup Guacamole"
 { echo "# Hostname and port of guacamole proxy
 guacd-hostname: localhost
 guacd-port:     ${GUAC_PORT}
+# OPENID properties
+openid-authorization-endpoint: ${OPENID_AUTH_ENDPOINT}
+openid-jwks-endpoint: ${OPENID_JWKS_ENDPOINT}
+openid-issuer: ${OPENID_ISSUER}
+openid-client-id: ${OPENID_CLIENT_ID}
+openid-redirect-uri: ${OPENID_REDIRECT_URI}
+openid-username-claim-type: ${OPENID_CLAIM}
+openid-scope: ${OPENID_SCOPE}
 # MySQL properties
 mysql-hostname: localhost
 mysql-port: ${MYSQL_PORT}
@@ -1752,8 +1841,8 @@ selinuxsettings () {
 	if [ $INSTALL_OPENID = true ]; then
 		# Placehold until extension is added
 		echo "openid true"
-		#semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-		#restorecon -v "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
+        	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/guacamole-auth-jd
+        	restorecon -v "${LIB_DIR}extensions/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
 	fi
 
 	# Guacamole Custom Extension Context (If selected)
