@@ -53,7 +53,7 @@ DB_PASSWD_DEF="guacamole" # Defualt database password
 JKS_GUAC_PASSWD_DEF="guacamole" # Default Java Keystore password
 JKS_CACERT_PASSWD_DEF="guacamole" # Default CACert Java Keystore password, used with LDAPS
 
-# Default OPENID Configuration
+# Default OpenID Configuration
 OPENID_AUTH_ENDPOINT_DEF="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/auth" # Default OPENID Auth Endpoint
 OPENID_JKWS_ENDPOINT_DEF="http://localhost:8081/auth/realms/guacamole/protocol/openid-connect/certs" # Default OPENID JKWS Endpoint
 OPENID_ISSUER_DEF="http://localhost:8081/auth/realms/guacamole" # Default OPENID Issuer
@@ -682,7 +682,7 @@ sum_menu
 
 ######  OPENID SUMMARY  ############################################
 sum_openid () {
-SUB_MENU_TITLE="OPENID Summary"
+SUB_MENU_TITLE="OpenID Summary"
 
 menu_header
 
@@ -1235,7 +1235,7 @@ else # Stable release
 	{ wget "${GUAC_URL}binary/${GUAC_JDBC}.tar.gz" -O ${GUAC_JDBC}.tar.gz; } &
 	s_echo "n" "-Downloading Guacamole JDBC Extension package for installation...    "; spinner
         { wget "${GUAC_URL}binary/${GUAC_OPENID}.tar.gz" -O ${GUAC_OPENID}.tar.gz; } &
-        s_echo "n" "-Downloading Guacamole OPENID Extension package for installation...    "; spinner
+        s_echo "n" "-Downloading Guacamole OpenID Extension package for installation...    "; spinner
 	downloadmysqlconn
 
 	# Decompress Guacamole Packages
@@ -1252,7 +1252,7 @@ else # Stable release
 		tar xzvf ${GUAC_JDBC}.tar.gz
 		rm -f ${GUAC_JDBC}.tar.gz
 		mv -v ${GUAC_JDBC} extension
-		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
+		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /opt/tomcat/latest/lib/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
 	} &
 	s_echo "n" "-Decompressing Guacamole JDBC extension...    "; spinner
 
@@ -1260,9 +1260,9 @@ else # Stable release
                 tar xzvf ${GUAC_OPENID}.tar.gz
                 rm -f ${GUAC_OPENID}.tar.gz
                 mv -v ${GUAC_OPENID} extension
-                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
+                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar /opt/tomcat/latest/lib/guacamole-auth-1-openid-${GUAC_VER}.jar
         } &
-        s_echo "n" "-Decompressing Guacamole OPENID extension...    "; spinner
+        s_echo "n" "-Decompressing Guacamole OpenID extension...    "; spinner
 fi
 
 {
@@ -1329,9 +1329,9 @@ s_echo "y" "${Bold}Setup Guacamole"
 { echo "# Hostname and port of guacamole proxy
 guacd-hostname: localhost
 guacd-port:     ${GUAC_PORT}
-# OPENID properties
+# OpenID properties
 openid-authorization-endpoint: ${OPENID_AUTH_ENDPOINT}
-openid-jwks-endpoint: ${OPENID_JWKS_ENDPOINT}
+openid-jwks-endpoint: ${OPENID_JKWS_ENDPOINT}
 openid-issuer: ${OPENID_ISSUER}
 openid-client-id: ${OPENID_CLIENT_ID}
 openid-redirect-uri: ${OPENID_REDIRECT_URI}
@@ -1493,7 +1493,7 @@ nginxcfg () {
 s_echo "y" "${Bold}Nginx Configuration"
 
 # Backup Nginx Configuration
-{ mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.ori.bkp; } &
+{ [ -f /etc/nginx/conf.d/default.conf ] && mv -n /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.ori.bkp; } &
 s_echo "n" "${Reset}-Making Nginx config backup...    "; spinner
 
 # HTTP Nginx Conf
@@ -1775,8 +1775,8 @@ selinuxsettings () {
 	restorecon -v "${LIB_DIR}guacamole.war"
 
 	# Guacamole JDBC Extension Context
-	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
-	restorecon -v "${LIB_DIR}extensions/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
+	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
+	restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
 
 	# MySQL Connector Extension Context
 	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}lib/${MYSQL_CON}.jar"
@@ -1824,8 +1824,8 @@ selinuxsettings () {
 	if [ $INSTALL_OPENID = true ]; then
 		# Placehold until extension is added
 		echo "openid true"
-        	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/guacamole-auth-openid-${GUAC_VER}.jar"
-        	restorecon -v "${LIB_DIR}extensions/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
+        	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-openid-${GUAC_VER}.jar"
+        	restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-1-openid-${GUAC_VER}.jar"
 	fi
 
 	# Guacamole Custom Extension Context (If selected)
