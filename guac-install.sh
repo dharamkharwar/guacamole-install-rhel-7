@@ -1134,18 +1134,12 @@ s_echo "n" "${Reset}-Installing required packages...    "; spinner
 
 # Install Tomcat
 {
-cat /etc/passwd | grep tomcat >/dev/null 2>&1
-if [ $? -eq 0 ] ; then
-   echo "tomcat user already exists"
-else
-   useradd -m -U -d /opt/tomcat -s /bin/false tomcat
-fi
-: '
+useradd -m -U -d /opt/tomcat -s /bin/false tomcat || echo "User already exists."
 cd /tmp
 wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.62/bin/apache-tomcat-9.0.62.tar.gz
 tar -xf apache-tomcat-9.0.62.tar.gz
-mv apache-tomcat-9.0.62 /opt/tomcat/
-ln -s /opt/tomcat/apache-tomcat-9.0.62 /opt/tomcat/latest
+mv -n apache-tomcat-9.0.62 /opt/tomcat/
+ln -sfn /opt/tomcat/apache-tomcat-9.0.62 /opt/tomcat/latest
 chown -R tomcat: /opt/tomcat
 chmod +x /opt/tomcat/latest/bin/*.sh
 cat <<EOF >/etc/systemd/system/tomcat.service 
@@ -1173,7 +1167,6 @@ ExecStop=/opt/tomcat/latest/bin/shutdown.sh
 [Install]
 WantedBy=multi-user.target
 EOF
-'
 systemctl daemon-reload
 systemctl enable tomcat
 systemctl start tomcat ;} &
@@ -1267,7 +1260,7 @@ else # Stable release
                 tar xzvf ${GUAC_OPENID}.tar.gz
                 rm -f ${GUAC_OPENID}.tar.gz
                 mv -v ${GUAC_OPENID} extension
-                mv -v extension/guacamole-auth-openid-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
+                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar ${LIB_DIR}extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
         } &
         s_echo "n" "-Decompressing Guacamole OPENID extension...    "; spinner
 fi
@@ -1374,19 +1367,9 @@ fi
 # Setup guacd user, group and permissions
 {
 	# Create a user and group for guacd with a home folder but no login
-	cat /etc/group | grep ${GUACD_USER} >/dev/null 2>&1
-        if [ $? -eq 0 ] ; then
-                echo "GUACD group already exists"
-        else
-                groupadd ${GUACD_USER}
-        fi
+        groupadd ${GUACD_USER} || echo "Group already exists."
 	# The guacd user is created as a service account, no login but does get a home dir as needed by freerdp
-	cat /etc/passwd | grep ${GUACD_USER} >/dev/null 2>&1
-	if [ $? -eq 0 ] ; then
-    		echo "GUACD user already exists"
-	else
-    		useradd -r ${GUACD_USER} -m -s "/bin/nologin" -g ${GUACD_USER} -c ${GUACD_USER}
-	fi
+    	useradd -r ${GUACD_USER} -m -s "/bin/nologin" -g ${GUACD_USER} -c ${GUACD_USER} || echo "User already exists."
 
 	# Set the user that runs the guacd service
 	sed -i "s/User=daemon/User=${GUACD_USER}/g" /etc/systemd/system/guacd.service
@@ -1426,7 +1409,7 @@ s_echo "n" "-Harden MariaDB...    "; spinner
 
 # Create Database and user
 {
-	mysql -u root -p${MYSQL_PASSWD} -e "CREATE DATABASE ${DB_NAME};"
+	mysql -u root -p${MYSQL_PASSWD} -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME};"
 	mysql -u root -p${MYSQL_PASSWD} -e "GRANT SELECT,INSERT,UPDATE,DELETE ON ${DB_NAME}.* TO '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
 	mysql -u root -p${MYSQL_PASSWD} -e "FLUSH PRIVILEGES;"
 } &
@@ -1458,14 +1441,14 @@ s_echo "n" "-Setting Time Zone Database & Config...    "; spinner
 s_echo "y" "${Bold}Setup Tomcat Server"
 
 {
-	sed -i '72i URIEncoding="UTF-8"' /etc/tomcat/server.xml
+	sed -i '72i URIEncoding="UTF-8"' /opt/tomcat/latest/conf/server.xml
 	sed -i '92i <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true" \
 							maxThreads="150" scheme="https" secure="true" \
 							clientAuth="false" sslProtocol="TLS" \
 							keystoreFile="/opt/tomcat/latest/webapps/.keystore" \
 							keystorePass="JKS_GUAC_PASSWD" \
-							URIEncoding="UTF-8" />' /etc/tomcat/server.xml
-	sed -i "s/JKS_GUAC_PASSWD/${JKS_GUAC_PASSWD}/g" /etc/tomcat/server.xml
+							URIEncoding="UTF-8" />' /opt/tomcat/latest/conf/server.xml
+	sed -i "s/JKS_GUAC_PASSWD/${JKS_GUAC_PASSWD}/g" /opt/tomcat/latest/conf/server.xml
 } &
 s_echo "n" "${Reset}-Base Tomcat configuration...    "; spinner
 
@@ -1475,9 +1458,9 @@ s_echo "n" "${Reset}-Base Tomcat configuration...    "; spinner
 							internalProxies="GUAC_SERVER_IP" \
 							remoteIpHeader="x-forwarded-for" \
 							remoteIpProxiesHeader="x-forwarded-by" \
-							protocolHeader="x-forwarded-proto" />' /etc/tomcat/server.xml
+							protocolHeader="x-forwarded-proto" />' /opt/tomcat/latest/conf/server.xml
 
-	sed -i "s/GUAC_SERVER_IP/${GUAC_LAN_IP}/g" /etc/tomcat/server.xml
+	sed -i "s/GUAC_SERVER_IP/${GUAC_LAN_IP}/g" /opt/tomcat/latest/conf/server.xml
 } &
 s_echo "n" "-Set RemoteIpValve in Tomcat configuration...    "; spinner
 
@@ -1485,7 +1468,7 @@ s_echo "n" "-Set RemoteIpValve in Tomcat configuration...    "; spinner
 # Add ErrorReportingValve to prevent displaying tomcat info on error pages
 	sed -i '/<\/Host>/i\<Valve className="org.apache.catalina.valves.ErrorReportValve" \
 							showReport="false" \
-							showServerInfo="false"/>' /etc/tomcat/server.xml
+							showServerInfo="false"/>' /opt/tomcat/latest/conf/server.xml
 } &
 s_echo "n" "-Set ErrorReportingVavle in Tomcat configuration...    "; spinner
 
@@ -1841,7 +1824,7 @@ selinuxsettings () {
 	if [ $INSTALL_OPENID = true ]; then
 		# Placehold until extension is added
 		echo "openid true"
-        	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/guacamole-auth-jd
+        	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/guacamole-auth-openid-${GUAC_VER}.jar"
         	restorecon -v "${LIB_DIR}extensions/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
 	fi
 
