@@ -22,6 +22,8 @@ set -E
 ######  UNIVERSAL VARIABLES  #########################################
 # USER CONFIGURABLE #
 # Generic
+DEL_TMP_VAR=true # Default behavior to delete the temp var file used by error handler on completion. Set to false to keep the file to review last values
+TMP_VAR_FILE="guac_tmp_vars" # Temp file name used to store varaibles for the error handler
 # Formats
 Black=`tput setaf 0`	#${Black}
 Red=`tput setaf 1`	#${Red}
@@ -77,6 +79,7 @@ NGINX_URL="https://nginx.org/packages/$OS_NAME_L/$MAJOR_VER/$MACHINE_ARCH/"
 src_vars () {
 
 # Dirs and file names
+FILENAME="${PWD}/guacamole-proxy_"$(date +"%d-%y-%b")"" # Script generated log filename
 logfile="${FILENAME}.log" # Script generated log file full name
 fwbkpfile="${FILENAME}.firewall.bkp" # Firewall backup file name
 }
@@ -451,7 +454,7 @@ gpgkey=https://nginx.org/keys/nginx_signing.key
 module_hotfixes=true" > /etc/yum.repos.d/nginx.repo; } &
 s_echo "n" "${Reset}-Installing Nginx repo...    "; spinner
 yumupdate
-
+}
 ######  YUM UPDATES  #################################################
 yumupdate () {
 
@@ -600,7 +603,20 @@ s_echo "n" "-Hardening Nginx config...    "; spinner
 } &
 s_echo "n" "-Enable & Start Nginx Service...    "; spinner
 
+selinuxsettings
 }
+
+######  SELINUX SETTINGS  ############################################
+selinuxsettings () {
+{
+	# Set Booleans
+	setsebool -P httpd_can_network_connect 1
+	setsebool -P httpd_can_network_relay 1
+	setsebool -P tomcat_can_network_connect_db 1
+
+} &
+
+s_echo "y" "${Bold}Setting SELinux Context...    "; spinner
 
 # Log SEL status
 sestatus
