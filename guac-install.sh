@@ -1198,7 +1198,7 @@ createdirs
 createdirs () {
 {
 	rm -fr ${INSTALL_DIR}
-	mkdir -vp /etc/guacamole
+	mkdir -vp /etc/guacamole/extensions
 	mkdir -vp ${INSTALL_DIR}{client,selinux}
 	mkdir -vp ${LIB_DIR}{extensions,lib}
 	mkdir -vp /usr/share/tomcat/.guacamole/
@@ -1252,7 +1252,8 @@ else # Stable release
 		tar xzvf ${GUAC_JDBC}.tar.gz
 		rm -f ${GUAC_JDBC}.tar.gz
 		mv -v ${GUAC_JDBC} extension
-		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /opt/tomcat/latest/lib/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
+		cp extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /opt/tomcat/latest/lib/
+		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
 	} &
 	s_echo "n" "-Decompressing Guacamole JDBC extension...    "; spinner
 
@@ -1260,7 +1261,7 @@ else # Stable release
                 tar xzvf ${GUAC_OPENID}.tar.gz
                 rm -f ${GUAC_OPENID}.tar.gz
                 mv -v ${GUAC_OPENID} extension
-                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar /opt/tomcat/latest/lib/guacamole-auth-1-openid-${GUAC_VER}.jar
+                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar /etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
         } &
         s_echo "n" "-Decompressing Guacamole OpenID extension...    "; spinner
 fi
@@ -1775,8 +1776,10 @@ selinuxsettings () {
 	restorecon -v "${LIB_DIR}guacamole.war"
 
 	# Guacamole JDBC Extension Context
-	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
-	restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
+	semanage fcontext -a -t tomcat_exec_t "/etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
+	restorecon -v "/etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
+        semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
+        restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
 
 	# MySQL Connector Extension Context
 	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}lib/${MYSQL_CON}.jar"
@@ -1824,8 +1827,8 @@ selinuxsettings () {
 	if [ $INSTALL_OPENID = true ]; then
 		# Placehold until extension is added
 		echo "openid true"
-        	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-openid-${GUAC_VER}.jar"
-        	restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-1-openid-${GUAC_VER}.jar"
+        	semanage fcontext -a -t tomcat_exec_t "/etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar"
+        	restorecon -v "/etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar"
 	fi
 
 	# Guacamole Custom Extension Context (If selected)
