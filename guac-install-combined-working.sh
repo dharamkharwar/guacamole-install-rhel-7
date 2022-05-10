@@ -129,6 +129,8 @@ MINOR_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 2p` # Returns th
 MACHINE_ARCH=`uname -m`
 ARCH="64"
 
+# Set nginx url for RHEL or CentOS
+NGINX_URL="https://nginx.org/packages/$OS_NAME_L/$MAJOR_VER/$MACHINE_ARCH/"
 }
 
 ######  SOURCE VARIABLES  ############################################
@@ -274,6 +276,112 @@ echo -n "${Green} Enter the Guacamole DB password: ${Yellow}"
 echo -n "${Green} Enter the Guacamole Java KeyStore password, must be 6 or more characters: ${Yellow}"
 	read JKS_GUAC_PASSWD
 	JKS_GUAC_PASSWD=${JKS_GUAC_PASSWD:-${JKS_GUAC_PASSWD_DEF}}
+}
+
+######  SSL CERTIFICATE TYPE MENU  ###################################
+ssl_cert_type_menu () {
+SUB_MENU_TITLE="SSL Certificate Type Menu"
+
+menu_header
+
+echo "${Green} What kind of SSL certificate should be used (default 2)?${Yellow}"
+PS3="${Green} Enter the number of the desired SSL certificate type: ${Yellow}"
+options=("LetsEncrypt" "Self-signed" "None")
+select opt in "${options[@]}"
+do
+	case $opt in
+		"LetsEncrypt") SSL_CERT_TYPE="LetsEncrypt"; le_menu; break;;
+		"Self-signed"|"") SSL_CERT_TYPE="Self-signed"; ss_menu; break;;
+		"None")
+			SSL_CERT_TYPE="None"
+			OCSP_USE=false
+			echo -e "\n\n${Red} No SSL certificate selected. This can be configured manually at a later time."
+			sleep 3
+			break;;
+		* ) echo "${Green} ${REPLY} is not a valid option, enter the number representing your desired cert type.";;
+		esac
+done
+}
+
+######  LETSENCRYPT MENU  ############################################
+le_menu () {
+SUB_MENU_TITLE="LetsEncrypt Menu"
+
+menu_header
+
+echo -n "${Green} Enter a valid e-mail for let's encrypt certificate: ${Yellow}"
+	read EMAIL_NAME
+echo -n "${Green} Enter the Let's Encrypt key-size to use (default ${LE_KEY_SIZE_DEF}): ${Yellow}"
+	read LE_KEY_SIZE
+	LE_KEY_SIZE=${LE_KEY_SIZE:-${LE_KEY_SIZE_DEF}}
+
+while true; do
+	echo -n "${Green} Use OCSP Stapling (default yes): ${Yellow}"
+	read yn
+	case $yn in
+		[Yy]*|"" ) OCSP_USE=true; break;;
+		[Nn]* ) OCSP_USE=false; break;;
+		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
+		esac
+done
+}
+
+######  SELF-SIGNED SSL CERTIFICATE MENU  ############################
+ss_menu () {
+OCSP_USE=false
+SUB_MENU_TITLE="Self-signed SSL Certificate Menu"
+
+menu_header
+
+echo -n "${Green} Enter the Self-Signed SSL key-size to use (default ${SSL_KEY_SIZE_DEF}): ${Yellow}"
+	read SSL_KEY_SIZE
+	SSL_KEY_SIZE=${SSL_KEY_SIZE:-${SSL_KEY_SIZE_DEF}}
+}
+
+######  NGINX OPTIONS MENU  ##########################################
+nginx_menu () {
+SUB_MENU_TITLE="Nginx Menu"
+
+menu_header
+
+# Server LAN IP
+GUAC_LAN_IP_DEF=$(hostname -I | sed 's/ .*//')
+
+echo -n "${Green} Enter the LAN IP of this server (default ${GUAC_LAN_IP_DEF}): ${Yellow}"
+	read GUAC_LAN_IP
+	GUAC_LAN_IP=${GUAC_LAN_IP:-${GUAC_LAN_IP_DEF}}
+echo -n "${Green} Enter a valid hostname or public domain such as mydomain.com (default ${DOMAIN_NAME_DEF}): ${Yellow}"
+	read DOMAIN_NAME
+	DOMAIN_NAME=${DOMAIN_NAME:-${DOMAIN_NAME_DEF}}
+echo -n "${Green} Enter the URI path, starting and ending with / for example /guacamole/ (default ${GUAC_URIPATH_DEF}): ${Yellow}"
+	read GUAC_URIPATH
+	GUAC_URIPATH=${GUAC_URIPATH:-${GUAC_URIPATH_DEF}}
+
+# Only prompt if SSL will be used
+if [ $SSL_CERT_TYPE != "None" ]; then
+	while true; do
+		echo -n "${Green} Use only >= 256-bit SSL ciphers (More secure, less compatible. default: yes)?: ${Yellow}"
+		read yn
+		case $yn in
+			[Yy]*|"" ) NGINX_SEC=true; break;;
+			[Nn]* ) NGINX_SEC=false; break;;
+			* ) echo "${Green} Please enter yes or no. ${Yellow}";;
+		esac
+	done
+
+	while true; do
+		echo -n "${Green} Use Content-Security-Policy [CSP] (More secure, less compatible. default: yes)?: ${Yellow}"
+		read yn
+		case $yn in
+			[Yy]*|"" ) USE_CSP=true; break;;
+			[Nn]* ) USE_CSP=false; break;;
+			* ) echo "${Green} Please enter yes or no. ${Yellow}";;
+		esac
+	done
+else
+	NGINX_SEC=false
+	USE_CSP=false
+fi
 }
 
 ######  PRIMARY AUTHORIZATION EXTENSIONS MENU  #######################
@@ -529,13 +637,15 @@ RET_SUM=false
 # List categories/menus to review or change
 echo "${Green} Select a category to review selections: ${Yellow}"
 PS3="${Green} Enter the number of the category to review: ${Yellow}"
-options=("Database" "OpenID" "Passwords" "Primary Authentication Extension" "2FA Extension" "Custom Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
+options=("Database" "OpenID" "Passwords" "SSL Cert Type" "Nginx" "Primary Authentication Extension" "2FA Extension" "Custom Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
 select opt in "${options[@]}"
 do
 	case $opt in
 		"Database") sum_db; break;;
 		"OpenID") sum_openid; break;;
 		"Passwords") sum_pw; break;;
+		"SSL Cert Type") sum_ssl; break;;
+		"Nginx") sum_nginx; break;;
 		"Primary Authentication Extension") sum_prime_auth_ext; break;;
 		"2FA Extension") sum_secondary_auth_ext; break;;
 		"Custom Extension") sum_cust_ext; break;;
@@ -612,6 +722,67 @@ while true; do
 	read yn
 	case $yn in
 		[Yy]* ) pw_menu; break;;
+		[Nn]*|"" ) break;;
+		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
+	esac
+done
+
+sum_menu
+}
+
+######  SSL CERTIFICATE SUMMARY  #####################################
+sum_ssl () {
+SUB_MENU_TITLE="SSL Certificate Summary"
+
+menu_header
+
+echo -e "${Green} Certficate Type: ${Yellow}${SSL_CERT_TYPE}\n"
+
+# Check the certificate selection to display proper information for selection
+case $SSL_CERT_TYPE in
+	"LetsEncrypt")
+		echo "${Green} e-mail for LetsEncrypt certificate: ${Yellow}${EMAIL_NAME}"
+		echo "${Green} LetEncrypt key-size: ${Yellow}${LE_KEY_SIZE}"
+		echo -e "${Green} Use OCSP Stapling?: ${Yellow}${OCSP_USE}\n"
+		;;
+	"Self-signed")
+		echo -e "${Green} Self-Signed SSL key-size: ${Yellow}${SSL_KEY_SIZE}\n"
+		;;
+	"None")
+		echo -e "${Yellow} As no certificate type was selected, an SSL certificate can be configured manually at a later time.\n"
+		;;
+esac
+
+while true; do
+	echo -n "${Green} Would you like to change these selections (default no)? ${Yellow}"
+	read yn
+	case $yn in
+		[Yy]* ) ssl_cert_type_menu; break;;
+		[Nn]*|"" ) break;;
+		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
+	esac
+done
+
+sum_menu
+}
+
+######  NGINX SUMMARY  ###############################################
+sum_nginx () {
+SUB_MENU_TITLE="Nginx Summary"
+
+menu_header
+
+echo "${Green} Guacamole Server LAN IP address: ${Yellow}${GUAC_LAN_IP}"
+echo "${Green} Guacamole Server hostname or public domain: ${Yellow}${DOMAIN_NAME}"
+echo "${Green} URI path: ${Yellow}${GUAC_URIPATH}"
+echo "${Green} Using only 256-bit >= ciphers?: ${Yellow}${NGINX_SEC}"
+echo -e "${Green} Content-Security-Policy [CSP] enabled?: ${Yellow}${USE_CSP}\n"
+
+while true; do
+	echo -n "${Green} Would you like to change these selections (default no)? ${Yellow}"
+	read yn
+	case $yn in
+		[Yy]* ) nginx_menu; break;;
 		[Nn]*|"" ) break;;
 		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
 	esac
@@ -743,6 +914,8 @@ sum_menu
 db_menu
 pw_menu
 openid_menu
+ssl_cert_type_menu
+nginx_menu
 prime_auth_ext_menu
 secondary_auth_ext_menu
 cust_ext_menu
@@ -897,6 +1070,16 @@ else
 	{ rpm -Uvh https://download1.rpmfusion.org/free/el/rpmfusion-free-release-${MAJOR_VER}.noarch.rpm; } &
 	s_echo "n" "-RPMFusion is missing. Installing...    "; spinner
 fi
+
+# Install Nginx Repo
+{ echo "[nginx-stable]
+name=Nginx Stable Repo
+baseurl=${NGINX_URL}
+gpgcheck=1
+enabled=1
+gpgkey=https://nginx.org/keys/nginx_signing.key
+module_hotfixes=true" > /etc/yum.repos.d/nginx.repo; } &
+s_echo "n" "${Reset}-Installing Nginx repo...    "; spinner
 
 # Install libjpeg-turbo Repo
 {
@@ -1303,7 +1486,148 @@ s_echo "y" "${Bold}Configuring the Java KeyStore...    "; spinner
 } &
 s_echo "y" "${Bold}Enable & Start Tomcat and Guacamole Services...    "; spinner
 
+nginxcfg
 }
+
+######  NGINX CONFIGURATION  #########################################
+nginxcfg () {
+s_echo "y" "${Bold}Nginx Configuration"
+
+# Backup Nginx Configuration
+{ [ -f /etc/nginx/conf.d/default.conf ] && mv -n /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.ori.bkp; } &
+s_echo "n" "${Reset}-Making Nginx config backup...    "; spinner
+
+# HTTP Nginx Conf
+{ echo "server {
+	listen 80;
+	listen [::]:80;
+	server_name ${DOMAIN_NAME};
+	return 301 https://\$host\$request_uri;
+
+	location ${GUAC_URIPATH} {
+	proxy_pass http://${GUAC_LAN_IP}:8080/guacamole/;
+	proxy_buffering off;
+	proxy_http_version 1.1;
+	proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+	proxy_set_header Upgrade \$http_upgrade;
+	proxy_set_header Connection \$http_connection;
+	proxy_cookie_path /guacamole/ ${GUAC_URIPATH};
+	access_log off;
+	}
+}" > /etc/nginx/conf.d/guacamole.conf 
+} &
+s_echo "n" "${Reset}-Generate Nginx guacamole.config...    "; spinner
+
+# HTTPS/SSL Nginx Conf
+{
+	echo "server {
+		#listen 443 ssl http2 default_server;
+		#listen [::]:443 ssl http2 default_server;
+		server_name ${DOMAIN_NAME};
+		server_tokens off;
+		#ssl_certificate guacamole.crt;
+		#ssl_certificate_key guacamole.key; " > /etc/nginx/conf.d/guacamole_ssl.conf
+
+	# If OCSP Stapling was selected add lines
+	if [ $OCSP_USE = true ]; then
+		if [[ -r /etc/resolv.conf ]]; then
+	            NAME_SERVERS=$(awk '/^nameserver/{print $2}' /etc/resolv.conf | xargs)
+	        fi
+		    
+		if [[ -z $NAME_SERVERS ]]; then
+		    NAME_SERVERS=$NAME_SERVERS_DEF
+		fi
+		
+		echo "	#ssl_trusted_certificate guacamole.pem;
+		ssl_stapling on;
+		ssl_stapling_verify on;
+		resolver ${NAME_SERVERS} valid=30s;
+		resolver_timeout 30s;" >> /etc/nginx/conf.d/guacamole_ssl.conf
+	fi
+
+	# If using >= 256-bit ciphers
+	if [ $NGINX_SEC = true ]; then
+		echo "	ssl_ciphers 'TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-SHA384';" >> /etc/nginx/conf.d/guacamole_ssl.conf
+	else
+		echo "	ssl_ciphers 'TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-SHA256';" >> /etc/nginx/conf.d/guacamole_ssl.conf
+	fi
+
+	# Rest of HTTPS/SSL Nginx Conf
+	echo "	ssl_protocols TLSv1.3 TLSv1.2;
+		ssl_ecdh_curve secp521r1:secp384r1:prime256v1;
+		ssl_prefer_server_ciphers on;
+		ssl_session_cache shared:SSL:10m;
+		ssl_session_timeout 1d;
+		ssl_session_tickets off;
+		add_header Referrer-Policy \"no-referrer\";
+		add_header Strict-Transport-Security \"max-age=15768000; includeSubDomains\" always;" >> /etc/nginx/conf.d/guacamole_ssl.conf
+		
+	# If CSP was enabled, add line, otherwise add but comment out (to allow easily manual toggle of the feature)
+	if [ $USE_CSP = true ]; then
+		echo "	add_header Content-Security-Policy \"default-src 'none'; script-src 'self' 'unsafe-eval'; connect-src 'self' wss://${DOMAIN_NAME}; object-src 'self'; frame-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'self';\" always;" >> /etc/nginx/conf.d/guacamole_ssl.conf
+	else
+		echo "	#add_header Content-Security-Policy \"default-src 'none'; script-src 'self' 'unsafe-eval'; connect-src 'self' wss://${DOMAIN_NAME}; object-src 'self'; frame-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'self';\" always;" >> /etc/nginx/conf.d/guacamole_ssl.conf
+	fi
+
+	echo "	add_header X-Frame-Options \"SAMEORIGIN\" always;
+		add_header X-Content-Type-Options \"nosniff\" always;
+		add_header X-XSS-Protection \"1; mode=block\" always;
+		proxy_hide_header Server;
+		proxy_hide_header X-Powered-By;
+		client_body_timeout 10;
+		client_header_timeout 10;
+
+		location ${GUAC_URIPATH} {
+		proxy_pass http://${GUAC_LAN_IP}:8080/guacamole/;
+		proxy_buffering off;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+		proxy_set_header Upgrade \$http_upgrade;
+		proxy_set_header Connection \$http_connection;
+		proxy_cookie_path /guacamole/ \"${GUAC_URIPATH}; HTTPOnly; Secure; SameSite\";
+		access_log /var/log/nginx/guac_access.log;
+		error_log /var/log/nginx/guac_error.log;
+		}
+	}" >> /etc/nginx/conf.d/guacamole_ssl.conf
+} &
+s_echo "n" "-Generate Nginx guacamole_ssl.config...    "; spinner
+
+# Nginx CIS hardening v1.0.0
+{
+	# 2.3.2 Restrict access to Nginx files
+	find /etc/nginx -type d | xargs chmod 750
+	find /etc/nginx -type f | xargs chmod 640
+
+	# 2.4.3 & 2.4.4 set keepalive_timeout and send_timeout to 1-10 seconds, default 65/60.
+	sed -i '/keepalive_timeout/c\keepalive_timeout 10\;' /etc/nginx/nginx.conf
+	# sed -i '/send_timeout/c\send_timeout 10\;' /etc/nginx/nginx.conf
+
+	# 2.5.2 Reoving mentions of Nginx from index and error pages
+	! read -r -d '' BLANK_HTML <<"EOF"
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+</body>
+</html>
+EOF
+
+	echo "${BLANK_HTML}" > /usr/share/nginx/html/index.html
+	echo "${BLANK_HTML}" > /usr/share/nginx/html/50x.html
+
+	# 3.4 Ensure logs are rotated (may set this as a user defined parameter)
+	sed -i "s/daily/weekly/" /etc/logrotate.d/nginx
+	sed -i "s/rotate 52/rotate 13/" /etc/logrotate.d/nginx
+} &
+s_echo "n" "-Hardening Nginx config...    "; spinner
+
+# Enable/Start Nginx Service
+{
+	systemctl enable nginx
+	systemctl restart nginx
+} &
+s_echo "n" "-Enable & Start Nginx Service...    "; spinner
 
 # Call each Guac extension function for those selected
 if [ $INSTALL_LDAP = true ]; then ldapsetup; fi
@@ -1541,6 +1865,15 @@ s_echo "n" "${Reset}-firewalld is installed and started on the system...    "; s
 { cp /etc/firewalld/zones/public.xml $fwbkpfile; } &
 s_echo "n" "-Backing up firewall public zone to: $fwbkpfile    "; spinner
 
+# Open HTTP and HTTPS ports
+{
+	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-service=http"
+	firewall-cmd --permanent --zone=public --add-service=http
+	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-service=https"
+	firewall-cmd --permanent --zone=public --add-service=https
+} &
+s_echo "n" "-Opening HTTP and HTTPS service ports...    "; spinner
+
 # Open 8080 and 8443 ports. Need to review if this is required or not
 {
 	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-port=8080/tcp"
@@ -1554,7 +1887,76 @@ s_echo "n" "-Opening ports 8080 and 8443 on TCP...    "; spinner
 { firewall-cmd --reload; } &
 s_echo "n" "-Reloading firewall...    "; spinner
 
+sslcerts
 }
+
+######  SSL CERTIFICATE  #############################################
+sslcerts () {
+s_echo "y" "${Bold}SSL Certificate Configuration"
+
+if [ $SSL_CERT_TYPE != "None" ]; then
+	# Lets Encrypt Setup (If selected)
+	if [ $SSL_CERT_TYPE = "LetsEncrypt" ]; then
+		# Install certbot from repo
+		{ yum install -y certbot python2-certbot-nginx; } &
+		s_echo "n" "${Reset}-Downloading certboot tool...    "; spinner
+
+		# OCSP
+		{
+			if [ $OCSP_USE = true ]; then
+				certbot certonly --nginx --must-staple -n --agree-tos --rsa-key-size ${LE_KEY_SIZE} -m "${EMAIL_NAME}" -d "${DOMAIN_NAME}"
+			else # Generate without OCSP --must-staple
+				certbot certonly --nginx -n --agree-tos --rsa-key-size ${LE_KEY_SIZE} -m "${EMAIL_NAME}" -d "${DOMAIN_NAME}"
+			fi
+		} &
+		s_echo "n" "-Generating a ${SSL_CERT_TYPE} SSL Certificate...    "; spinner
+
+		# Symlink Lets Encrypt certs so renewal does not break Nginx
+		{
+			ln -vs "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" /etc/nginx/guacamole.crt
+			ln -vs "/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem" /etc/nginx/guacamole.key
+			ln -vs "/etc/letsencrypt/live/${DOMAIN_NAME}/chain.pem" /etc/nginx/guacamole.pem
+		} &
+		s_echo "n" "-Creating symlinks to ${SSL_CERT_TYPE} SSL certificates...    "; spinner
+
+		# Setup automatic cert renewal
+		{
+			systemctl enable certbot-renew.service
+			systemctl enable certbot-renew.timer
+			systemctl list-timers --all | grep certbot
+		} &
+		s_echo "n" "-Setup automatic ${SSL_CERT_TYPE} SSL certificate renewals...    "; spinner
+
+	else # Use a Self-Signed Cert
+		{ openssl req -x509 -sha512 -nodes -days 365 -newkey rsa:${SSL_KEY_SIZE} -keyout /etc/nginx/guacamole.key -out /etc/nginx/guacamole.crt -subj "/C=''/ST=''/L=''/O=''/OU=''/CN=''"; } &
+		s_echo "n" "${Reset}-Generating ${SSL_CERT_TYPE} SSL Certificate...    "; spinner
+	fi
+
+	# Nginx CIS v1.0.0 - 4.1.3 ensure private key permissions are restricted
+	{
+		ls -l /etc/nginx/guacamole.key
+		chmod 400 /etc/nginx/guacamole.key
+	} &
+	s_echo "n" "${Reset}-Changing permissions on SSL private key...    "; spinner
+
+	{
+		# Uncomment listen lines from Nginx guacamole_ssl.conf (fixes issue introduced by Nginx 1.16.0)
+		sed -i 's/#\(listen.*443.*\)/\1/' /etc/nginx/conf.d/guacamole_ssl.conf
+		# Uncomment cert lines from Nginx guacamole_ssl.conf
+		sed -i 's/#\(.*ssl_.*certificate.*\)/\1/' /etc/nginx/conf.d/guacamole_ssl.conf
+	} &
+	s_echo "n" "${Reset}-Enabling SSL certificate in guacamole_ssl.conf...    "; spinner
+
+	HTTPS_ENABLED=true
+else # Cert is set to None
+	s_echo "n" "${Reset}-No SSL Cert selected..."
+
+	# Will not force/use HTTPS without a cert, comment out redirect
+	{ sed -i '/\(return 301 https\)/s/^/#/' /etc/nginx/conf.d/guacamole.conf; } &
+	s_echo "n" "${Reset}-Update guacamole.conf to allow HTTP connections...    "; spinner
+
+	HTTPS_ENABLED=false
+fi
 
 showmessages
 }
@@ -1586,6 +1988,20 @@ s_echo "y" "${Bold}${Green}##### Installation Complete! #####${Reset}"
 s_echo "y" "${Bold}Log Files"
 s_echo "n" "${Reset}-Log file: ${logfile}"
 s_echo "n" "-firewall backup file: ${fwbkpfile}"
+
+# Determine Guac server URL for web GUI
+if [ ${DOMAIN_NAME} = "localhost" ]; then
+	GUAC_URL=${GUAC_LAN_IP}${GUAC_URIPATH}
+else # Not localhost
+	GUAC_URL=${DOMAIN_NAME}${GUAC_URIPATH}
+fi
+
+# Determine if HTTPS is used or not
+if [ ${HTTPS_ENABLED} = true ]; then
+	HTTPS_MSG="${Reset} or ${Bold}https://${GUAC_URL}${Reset}"
+else # HTTPS not used
+	HTTPS_MSG="${Reset}. Without a cert, HTTPS is not forced/available."
+fi
 
 # Manage Guac
 s_echo "y" "${Bold}To manage Guacamole"
