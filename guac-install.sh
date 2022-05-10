@@ -236,27 +236,27 @@ SUB_MENU_TITLE="OPENID Menu"
 
 menu_header
 
-echo -n "${Green} Enter the OpenID Authorization Endpoint (default ${OPENID_AUTH_ENDPOINT_DEF}): ${Yellow}"
+echo -n "${Green} Enter the OpenID Authorization Endpoint (example http://openidhost/auth/realms/guacamole/protocol/openid-connect/auth): ${Yellow}"
         read OPENID_AUTH_ENDPOINT
-        OPENID_AUTH_ENDPOINT=${OPENID_AUTH_ENDPOINT:-${OPENID_AUTH_ENDPOINT_DEF}}
-echo -n "${Green} Enter the OpenID JKWS Endpoint (default ${OPENID_JKWS_ENDPOINT_DEF}): ${Yellow}"
+        #OPENID_AUTH_ENDPOINT=${OPENID_AUTH_ENDPOINT:-${OPENID_AUTH_ENDPOINT_DEF}}
+echo -n "${Green} Enter the OpenID JKWS Endpoint (example http://openidhost/auth/realms/guacamole/protocol/openid-connect/certs): ${Yellow}"
         read OPENID_JKWS_ENDPOINT
-        OPENID_JKWS_ENDPOINT=${OPENID_JKWS_ENDPOINT:-${OPENID_JKWS_ENDPOINT_DEF}}
-echo -n "${Green} Enter the OpenID Issuer (default ${OPENID_ISSUER_DEF}): ${Yellow}"
+        #OPENID_JKWS_ENDPOINT=${OPENID_JKWS_ENDPOINT:-${OPENID_JKWS_ENDPOINT_DEF}}
+echo -n "${Green} Enter the OpenID Issuer (example http://openidhost/auth/realms/guacamole): ${Yellow}"
         read OPENID_ISSUER
-        OPENID_ISSUER=${OPENID_ISSUER:-${OPENID_ISSUER_DEF}}
-echo -n "${Green} Enter the OpenID Client ID (default ${OPENID_CLIENT_ID_DEF}): ${Yellow}"
+        #OPENID_ISSUER=${OPENID_ISSUER:-${OPENID_ISSUER_DEF}}
+echo -n "${Green} Enter the OpenID Client ID (example guacamole): ${Yellow}"
         read OPENID_CLIENT_ID
-        OPENID_CLIENT_ID=${OPENID_CLIENT_ID:-${OPENID_CLIENT_ID_DEF}}
-echo -n "${Green} Enter the OpenID Redirect URI (default ${OPENID_REDIRECT_URI_DEF}): ${Yellow}"
+        #OPENID_CLIENT_ID=${OPENID_CLIENT_ID:-${OPENID_CLIENT_ID_DEF}}
+echo -n "${Green} Enter the OpenID Redirect URI (example http://guacamole.company.com): ${Yellow}"
         read OPENID_REDIRECT_URI
-        OPENID_REDIRECT_URI=${OPENID_REDIRECT_URI:-${OPENID_REDIRECT_URI_DEF}}
-echo -n "${Green} Enter the OpenID Username Claim Type (default ${OPENID_CLAIM_DEF}): ${Yellow}"
+        #OPENID_REDIRECT_URI=${OPENID_REDIRECT_URI:-${OPENID_REDIRECT_URI_DEF}}
+echo -n "${Green} Enter the OpenID Username Claim Type (example email): ${Yellow}"
         read OPENID_CLAIM
-        OPENID_CLAIM=${OPENID_CLAIM:-${OPENID_CLAIM_DEF}}
-echo -n "${Green} Enter the OpenID Scope (default ${OPENID_SCOPE_DEF}): ${Yellow}"
+        #OPENID_CLAIM=${OPENID_CLAIM:-${OPENID_CLAIM_DEF}}
+echo -n "${Green} Enter the OpenID Scope (example openid email profile): ${Yellow}"
         read OPENID_SCOPE
-        OPENID_SCOPE=${OPENID_SCOPE:-${OPENID_SCOPE_DEF}}
+        #OPENID_SCOPE=${OPENID_SCOPE:-${OPENID_SCOPE_DEF}}
 }
 
 ######  PASSWORDS MENU  ##############################################
@@ -1303,8 +1303,6 @@ s_echo "y" "${Bold}Configuring the Java KeyStore...    "; spinner
 } &
 s_echo "y" "${Bold}Enable & Start Tomcat and Guacamole Services...    "; spinner
 
-}
-
 # Call each Guac extension function for those selected
 if [ $INSTALL_LDAP = true ]; then ldapsetup; fi
 if [ $INSTALL_TOTP = true ]; then totpsetup; fi
@@ -1554,8 +1552,6 @@ s_echo "n" "-Opening ports 8080 and 8443 on TCP...    "; spinner
 { firewall-cmd --reload; } &
 s_echo "n" "-Reloading firewall...    "; spinner
 
-}
-
 showmessages
 }
 
@@ -1588,15 +1584,13 @@ s_echo "n" "${Reset}-Log file: ${logfile}"
 s_echo "n" "-firewall backup file: ${fwbkpfile}"
 
 # Manage Guac
-s_echo "y" "${Bold}To manage Guacamole"
-s_echo "n" "${Reset}-go to: ${Bold}http://${GUAC_URL}${HTTPS_MSG}"
-s_echo "n" "-The default username and password are: ${Red}guacadmin"
 
 # Recommendations
-s_echo "y" "Important Recommendations${Reset}"
+s_echo "y" "${Red}Important${Reset}"
 
 if [ $INSTALL_LDAP = false ]; then
-	s_echo "n" "-It is highly recommended to create an admin account in Guacamole and delete/disable the default asap!"
+	#s_echo "n" "-It is highly recommended to create an admin account in Guacamole and delete/disable the default asap!"
+	s_echo "n" "-Please make sure to run the proxy-install.sh script"
 else
 	s_echo "n" "-You should assign at least one AD/LDAP user to have full admin, see the directions on how-to at:"
 	s_echo "n" "${Green} https://github.com/Zer0CoolX/guacamole-install-rhel-7/wiki/LDAP-or-LDAPS-Authentication#important-manual-steps${Reset}"
@@ -1607,8 +1601,7 @@ else
 	fi
 fi
 
-s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation${Reset}"
-s_echo "y" "${Bold}Contact ${Reset}${ADM_POC}${Bold} with any questions or concerns regarding this script\n"
+s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation\n${Reset}"
 
 # Log cleanup to remove escape sequences caused by tput for formatting text
 sed -i 's/\x1b\[[0-9;]*m\|\x1b[(]B\x1b\[m//g' ${logfile}

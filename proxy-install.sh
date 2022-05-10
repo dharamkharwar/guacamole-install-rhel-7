@@ -782,7 +782,8 @@ s_echo "y" "${Bold}To manage Guacamole"
 s_echo "n" "${Reset}-go to: ${Bold}http://${GUAC_URL}${HTTPS_MSG}"
 
 # Recommendations
-s_echo "y" "Important Recommendations${Reset}"
+s_echo "y" "${Red}Important${Reset}"
+s_echo "n" "-Please make sure to run the guac-install.sh script"
 
 s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation${Reset}"
 s_echo "y" "${Bold}Contact ${Reset}${ADM_POC}${Bold} with any questions or concerns regarding this script\n"
