@@ -668,10 +668,15 @@ s_echo "n" "-Backing up firewall public zone to: $fwbkpfile    "; spinner
 	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-service=https"
 	firewall-cmd --permanent --zone=public --add-service=https
 
-sslcerts
-
 } &
 s_echo "n" "-Opening HTTP and HTTPS service ports...    "; spinner
+
+#echo -e "Reload firewall...\nfirewall-cmd --reload\n"
+{ firewall-cmd --reload; } &
+s_echo "n" "-Reloading firewall...    "; spinner
+
+sslcerts
+
 }
 ######  SSL CERTIFICATE  #############################################
 sslcerts () {
@@ -785,8 +790,7 @@ s_echo "n" "${Reset}-go to: ${Bold}http://${GUAC_URL}${HTTPS_MSG}"
 s_echo "y" "${Red}Important${Reset}"
 s_echo "n" "-Please make sure to run the guac-install.sh script"
 
-s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation${Reset}"
-s_echo "y" "${Bold}Contact ${Reset}${ADM_POC}${Bold} with any questions or concerns regarding this script\n"
+s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation\n${Reset}"
 
 # Log cleanup to remove escape sequences caused by tput for formatting text
 sed -i 's/\x1b\[[0-9;]*m\|\x1b[(]B\x1b\[m//g' ${logfile}
