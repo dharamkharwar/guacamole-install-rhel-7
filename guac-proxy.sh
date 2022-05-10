@@ -22,6 +22,13 @@ set -E
 ######  UNIVERSAL VARIABLES  #########################################
 # USER CONFIGURABLE #
 # Generic
+
+# Key Sizes
+LE_KEY_SIZE_DEF="4096" # Default Let's Encrypt key-size
+SSL_KEY_SIZE_DEF="4096" # Default Self-signed SSL key-size
+
+DOMAIN_NAME_DEF="localhost" # Default domain name of server
+GUAC_URIPATH_DEF="/" # Default URI for Guacamole
 DEL_TMP_VAR=true # Default behavior to delete the temp var file used by error handler on completion. Set to false to keep the file to review last values
 TMP_VAR_FILE="guac_tmp_vars" # Temp file name used to store varaibles for the error handler
 # Formats
@@ -113,7 +120,6 @@ clear
 echo -e "   ${Reset}${Bold}----====Gucamole Installation Script====----\n       ${Reset}Guacamole Remote Desktop Gateway\n"
 echo -e "   ${Bold}***     ${SUB_MENU_TITLE}     ***\n"
 echo "   OS: ${Yellow}${OS_NAME} ${MAJOR_VER}.${MINOR_VER} ${MACHINE_ARCH}${Reset}"
-echo -e "   ${Bold}Source/Version: ${Yellow}${GUAC_SOURCE} ${GUAC_VER}${Reset}\n"
 }
 
 ######  SSL CERTIFICATE TYPE MENU  ###################################
@@ -185,7 +191,7 @@ menu_header
 # Server LAN IP
 GUAC_LAN_IP_DEF=$(hostname -I | sed 's/ .*//')
 
-echo -n "${Green} Enter the LAN IP of this server (default ${GUAC_LAN_IP_DEF}): ${Yellow}"
+echo -n "${Green} Enter the IP/hostname of the Guacamole server (default ${GUAC_LAN_IP_DEF}): ${Yellow}"
 	read GUAC_LAN_IP
 	GUAC_LAN_IP=${GUAC_LAN_IP:-${GUAC_LAN_IP_DEF}}
 echo -n "${Green} Enter a valid hostname or public domain such as mydomain.com (default ${DOMAIN_NAME_DEF}): ${Yellow}"
@@ -462,6 +468,18 @@ yumupdate () {
 { yum update -y; } &
 s_echo "y" "${Bold}Updating ${OS_NAME}, please wait...    "; spinner
 
+baseinstall
+}
+
+######  INSTALL BASE PACKAGES  #######################################
+baseinstall () {
+
+# Install Required Packages
+{
+        yum install -y nginx
+} &
+s_echo "n" "${Reset}-Installing Nginx...    "; spinner
+
 nginxcfg
 }
 
@@ -654,7 +672,7 @@ sslcerts
 
 } &
 s_echo "n" "-Opening HTTP and HTTPS service ports...    "; spinner
-
+}
 ######  SSL CERTIFICATE  #############################################
 sslcerts () {
 s_echo "y" "${Bold}SSL Certificate Configuration"
@@ -732,18 +750,9 @@ s_echo "y" "${Bold}Services"
 
 # Restart all services and log status
 {
-	systemctl restart tomcat
-	systemctl status tomcat
-	systemctl restart guacd
-	systemctl status guacd
-	systemctl restart mariadb
-	systemctl status mariadb
 	systemctl restart nginx
 	systemctl status nginx
 
-	# Verify that the guacd user is running guacd
-	ps aux | grep ${GUACD_USER}
-	ps -U ${GUACD_USER}
 } &
 s_echo "n" "${Reset}-Restarting all services...    "; spinner
 
@@ -771,7 +780,6 @@ fi
 # Manage Guac
 s_echo "y" "${Bold}To manage Guacamole"
 s_echo "n" "${Reset}-go to: ${Bold}http://${GUAC_URL}${HTTPS_MSG}"
-s_echo "n" "-The default username and password are: ${Red}guacadmin"
 
 # Recommendations
 s_echo "y" "Important Recommendations${Reset}"
