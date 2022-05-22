@@ -59,7 +59,7 @@ OPENID_JKWS_ENDPOINT_DEF="http://localhost:8081/auth/realms/guacamole/protocol/o
 OPENID_ISSUER_DEF="http://localhost:8081/auth/realms/guacamole" # Default OPENID Issuer
 OPENID_CLIENT_ID_DEF="guacamole" # Default OPENID Client ID
 OPENID_REDIRECT_URI_DEF="http://localhost:8081/guacamole" # Default OPENID Redirect URI
-OPENID_CLAIM_DEF="email" # Default OPENID Username Claim Type
+OPENID_CLAIM_DEF="preferred_username" # Default OPENID Username Claim Type
 OPENID_SCOPE_DEF="openid email profile" # Default OPENID Scope
 
 # Misc
@@ -251,7 +251,7 @@ echo -n "${Green} Enter the OpenID Client ID (example guacamole): ${Yellow}"
 echo -n "${Green} Enter the OpenID Redirect URI (example http://guacamole.company.com): ${Yellow}"
         read OPENID_REDIRECT_URI
         #OPENID_REDIRECT_URI=${OPENID_REDIRECT_URI:-${OPENID_REDIRECT_URI_DEF}}
-echo -n "${Green} Enter the OpenID Username Claim Type (example email): ${Yellow}"
+echo -n "${Green} Enter the OpenID Username Claim Type (example preferred_username): ${Yellow}"
         read OPENID_CLAIM
         #OPENID_CLAIM=${OPENID_CLAIM:-${OPENID_CLAIM_DEF}}
 echo -n "${Green} Enter the OpenID Scope (example openid email profile): ${Yellow}"
@@ -945,7 +945,7 @@ s_echo "n" "${Reset}-Removing unnecessary packages...    "; spinner
 
 # Install Required Packages
 {
-	yum install -y java-11-openjdk-devel cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server nginx openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot uuid-devel
+	yum install -y java-11-openjdk-devel cairo-devel ffmpeg-devel freerdp-devel freerdp-plugins gcc gnu-free-mono-fonts libjpeg-turbo-devel libjpeg-turbo-official libpng-devel libssh2-devel libtelnet-devel libvncserver-devel libvorbis-devel libwebp-devel libwebsockets-devel mariadb mariadb-server openssl-devel pango-devel policycoreutils-python pulseaudio-libs-devel setroubleshoot uuid-devel
 } &
 s_echo "n" "${Reset}-Installing required packages...    "; spinner
 
@@ -1069,7 +1069,6 @@ else # Stable release
 		tar xzvf ${GUAC_JDBC}.tar.gz
 		rm -f ${GUAC_JDBC}.tar.gz
 		mv -v ${GUAC_JDBC} extension
-		cp extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /opt/tomcat/latest/lib/
 		mv -v extension/mysql/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar /etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar
 	} &
 	s_echo "n" "-Decompressing Guacamole JDBC extension...    "; spinner
@@ -1086,7 +1085,7 @@ fi
 {
 	tar xzvf ${MYSQL_CON}.tar.gz
 	rm -f ${MYSQL_CON}.tar.gz
-	mv -v ${MYSQL_CON}/${MYSQL_CON}.jar ${LIB_DIR}lib/
+	mv -v ${MYSQL_CON}/${MYSQL_CON}.jar /opt/tomcat/latest/lib/
 } &
 s_echo "n" "-Decompressing MySQL Connector...    "; spinner
 
@@ -1162,7 +1161,9 @@ mysql-database: ${DB_NAME}
 mysql-username: ${DB_USER}
 mysql-password: ${DB_PASSWD}
 mysql-default-max-connections-per-user: 0
-mysql-default-max-group-connections-per-user: 0" > /etc/guacamole/${GUAC_CONF}; } &
+mysql-default-max-group-connections-per-user: 0
+mysql-user-required: false
+mysql-auto-create-accounts: true" > /etc/guacamole/${GUAC_CONF}; } &
 s_echo "n" "${Reset}-Generating Guacamole configuration file...    "; spinner
 
 # Create Required Symlinks for Guacamole
@@ -1452,12 +1453,10 @@ selinuxsettings () {
 	# Guacamole JDBC Extension Context
 	semanage fcontext -a -t tomcat_exec_t "/etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
 	restorecon -v "/etc/guacamole/extensions/guacamole-auth-2-jdbc-mysql-${GUAC_VER}.jar"
-        semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
-        restorecon -v "/opt/tomcat/latest/lib/guacamole-auth-jdbc-mysql-${GUAC_VER}.jar"
 
 	# MySQL Connector Extension Context
-	semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}lib/${MYSQL_CON}.jar"
-	restorecon -v "${LIB_DIR}lib/${MYSQL_CON}.jar"
+	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/${MYSQL_CON}.jar"
+	restorecon -v "/opt/tomcat/latest/lib/${MYSQL_CON}.jar"
 
 	# Guacamole LDAP Extension Context (If selected)
 	if [ $INSTALL_LDAP = true ]; then
@@ -1567,8 +1566,6 @@ s_echo "y" "${Bold}Services"
 	systemctl status guacd
 	systemctl restart mariadb
 	systemctl status mariadb
-	systemctl restart nginx
-	systemctl status nginx
 
 	# Verify that the guacd user is running guacd
 	ps aux | grep ${GUACD_USER}
