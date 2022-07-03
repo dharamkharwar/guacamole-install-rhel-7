@@ -2,7 +2,6 @@
 # WARNING: For use on RHEL/CentOS 7.x and up only.
 #       -Use at your own risk!
 #       -Use only for new installations of Guacamole!
-#       -Read all documentation (wiki) prior to using this script!
 #       -Test prior to deploying on a production system!
 #
 ######  PRE-RUN CHECKS  ##############################################
@@ -71,8 +70,6 @@ OS_NAME_L="$(echo $OS_NAME | tr '[:upper:]' '[:lower:]')" # Set lower case rhel 
 # Outputs the major.minor.release number of the OS, Ex: 7.6.1810 and splits the 3 parts.
 MAJOR_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 1p` # Return the leftmost digit representing major version
 MINOR_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 2p` # Returns the middle digit representing minor version
-# Placeholder in case this info is ever needed. RHEL does not have release number, only major.minor
-# RELEASE_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 3p` # Returns the rightmost digits representing release number
 
 #Set arch used in some paths
 MACHINE_ARCH=`uname -m`

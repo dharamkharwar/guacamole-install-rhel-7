@@ -30,6 +30,9 @@ TOMCAT_VER="9.0.62"
 GUAC_PORT="4822"
 MYSQL_PORT="3306"
 
+# Proxy
+PROXY_IP_DEF="1.2.3.4" # Default guacamole proxy IP
+
 # Key Sizes
 JKSTORE_KEY_SIZE_DEF="4096" # Default Java Keystore key-size
 LE_KEY_SIZE_DEF="4096" # Default Let's Encrypt key-size
@@ -275,6 +278,17 @@ menu_header
 sleep 3
 }
 
+######  PROXY MENU  ##############################################
+proxy_menu () {
+SUB_MENU_TITLE="Proxy Menu"
+
+menu_header
+
+echo -n "${Green} Enter the IP address of the Proxy server: ${Yellow}"
+        read PROXY_IP
+        PROXY_IP=${PROXY_IP:-${PROXY_IP_DEF}}
+}
+
 ######################################################################
 ######  SUMMARY MENUS  ###############################################
 ######################################################################
@@ -291,7 +305,7 @@ RET_SUM=false
 # List categories/menus to review or change
 echo "${Green} Select a category to review selections: ${Yellow}"
 PS3="${Green} Enter the number of the category to review: ${Yellow}"
-options=("Database" "OpenID" "Passwords" "Primary Authentication Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
+options=("Database" "OpenID" "Passwords" "Primary Authentication Extension" "Proxy" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
 select opt in "${options[@]}"
 do
 	case $opt in
@@ -299,6 +313,7 @@ do
 		"OpenID") sum_openid; break;;
 		"Passwords") sum_pw; break;;
 		"Primary Authentication Extension") sum_prime_auth_ext; break;;
+                "Proxy") sum_proxy; break;;
 		"Accept and Run Installation") RUN_INSTALL=true; break;;
 		"Cancel and Start Over") ScriptLoc=$(readlink -f "$0"); exec "$ScriptLoc"; break;;
 		"Cancel and Exit Script") tput sgr0; exit 1; break;;
@@ -435,11 +450,33 @@ done
 sum_menu
 }
 
+######  PROXY SUMMARY  ############################################
+sum_proxy () {
+SUB_MENU_TITLE="Proxy Summary"
+
+menu_header
+
+echo -e "${Green} Proxy IP Address: ${Yellow}${PROXY_IP}\n"
+
+while true; do
+        echo -n "${Green} Would you like to change these selections (default no)? ${Yellow}"
+        read yn
+        case $yn in
+                [Yy]* ) proxy_menu; break;;
+                [Nn]*|"" ) break;;
+                * ) echo "${Green} Please enter yes or no. ${Yellow}";;
+        esac
+done
+
+sum_menu
+}
+
 ######  MENU EXECUTION  ##############################################
 db_menu
 pw_menu
 openid_menu
 prime_auth_ext_menu
+proxy_menu
 sum_menu
 
 # Sets file descriptor to 3 for this special echo function and spinner
@@ -1047,14 +1084,13 @@ s_echo "n" "${Reset}-firewalld is installed and started on the system...    "; s
 { cp /etc/firewalld/zones/public.xml $fwbkpfile; } &
 s_echo "n" "-Backing up firewall public zone to: $fwbkpfile    "; spinner
 
-# Open 8080 and 8443 ports. Need to review if this is required or not
+# Open 8080 port. Need to review if this is required or not
 {
 	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-port=8080/tcp"
-	firewall-cmd --permanent --zone=public --add-port=8080/tcp
-	echo -e "Add new rule...\nfirewall-cmd --permanent --zone=public --add-port=8443/tcp"
-	firewall-cmd --permanent --zone=public --add-port=8443/tcp
+	firewall-cmd --permanent --zone=public --add-rich-rule='rule family="ipv4" source address='"${PROXY_IP}/32"' port protocol="tcp" port="8080" accept'
+
 } &
-s_echo "n" "-Opening ports 8080 and 8443 on TCP...    "; spinner
+s_echo "n" "-Opening ports 8080 on TCP...    "; spinner
 
 #echo -e "Reload firewall...\nfirewall-cmd --reload\n"
 { firewall-cmd --reload; } &
