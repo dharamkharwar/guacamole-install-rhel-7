@@ -1,14 +1,8 @@
 #!/bin/env bash
 ######  NOTES  #######################################################
-# Project Page: https://github.com/Zer0CoolX/guacamole-install-rhel-7
-# Licence (GPL-3.0): https://github.com/Zer0CoolX/guacamole-install-rhel-7/blob/master/LICENSE
-# Report Issues: https://github.com/Zer0CoolX/guacamole-install-rhel-7/wiki/How-to-Report-Issues-(Bugs,-Feature-Request-and-Help)
-# Wiki: https://github.com/Zer0CoolX/guacamole-install-rhel-7/wiki
-#
 # WARNING: For use on RHEL/CentOS 7.x and up only.
 #	-Use at your own risk!
 #	-Use only for new installations of Guacamole!
-# 	-Read all documentation (wiki) prior to using this script!
 #	-Test prior to deploying on a production system!
 #
 ######  PRE-RUN CHECKS  ##############################################
@@ -27,14 +21,10 @@ set -E
 
 ######  UNIVERSAL VARIABLES  #########################################
 # USER CONFIGURABLE #
-# Generic
-SCRIPT_BUILD="2020_07_16" # Scripts Date for last modified as "yyyy_mm_dd"
-ADM_POC="Local Admin, admin@admin.com"  # Point of contact for the Guac server admin
-
 # Versions
 GUAC_STBL_VER="1.3.0" # Latest stable version of Guac from https://guacamole.apache.org/releases/
 MYSQL_CON_VER="8.0.21" # Working stable release of MySQL Connecter J
-MAVEN_VER="3.6.3" # Latest stable version of Apache Maven
+TOMCAT_VER="9.0.62"
 
 # Ports
 GUAC_PORT="4822"
@@ -122,8 +112,6 @@ OS_NAME_L="$(echo $OS_NAME | tr '[:upper:]' '[:lower:]')" # Set lower case rhel 
 # Outputs the major.minor.release number of the OS, Ex: 7.6.1810 and splits the 3 parts.
 MAJOR_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 1p` # Return the leftmost digit representing major version
 MINOR_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 2p` # Returns the middle digit representing minor version
-# Placeholder in case this info is ever needed. RHEL does not have release number, only major.minor
-# RELEASE_VER=`cat /etc/redhat-release | grep -oP "[0-9]+" | sed -n 3p` # Returns the rightmost digits representing release number
 
 #Set arch used in some paths
 MACHINE_ARCH=`uname -m`
@@ -139,10 +127,6 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	GUAC_URL="git://github.com/apache/"
 	GUAC_SERVER="guacamole-server.git"
 	GUAC_CLIENT="guacamole-client.git"
-	MAVEN_MAJOR_VER=${MAVEN_VER:0:1}
-	MAVEN_URL="https://www-us.apache.org/dist/maven/maven-${MAVEN_MAJOR_VER}/${MAVEN_VER}/binaries/"
-	MAVEN_FN="apache-maven-${MAVEN_VER}"
-	MAVEN_BIN="${MAVEN_FN}-bin.tar.gz"
 else # Stable release
 	GUAC_VER=${GUAC_STBL_VER}
 	GUAC_URL="https://apache.org/dyn/closer.cgi?action=download&filename=guacamole/${GUAC_VER}/"
@@ -156,12 +140,6 @@ GUAC_JDBC="guacamole-auth-jdbc-${GUAC_VER}"
 
 # OPENID Extension file name
 GUAC_OPENID="guacamole-auth-openid-${GUAC_VER}"
-
-# LDAP extension file name
-GUAC_LDAP="guacamole-auth-ldap-${GUAC_VER}"
-
-# TOTP extension file name
-GUAC_TOTP="guacamole-auth-totp-${GUAC_VER}"
 
 # Dirs and file names
 INSTALL_DIR="/usr/local/src/guacamole/${GUAC_VER}/" # Guacamole installation dir
@@ -282,188 +260,8 @@ SUB_MENU_TITLE="Primary Authentication Extensions Menu"
 
 menu_header
 
-INSTALL_LDAP=false
-SECURE_LDAP=false
-INSTALL_RADIUS=false
-INSTALL_CAS=false
 INSTALL_OPENID=true
 
-# Allows selection of an authentication method in addition to MariaDB/Database or just MariaDB
-# which is used to store connection and user meta data for all other methods
-echo "${Green} What Guacamole extension should be used as the primary user authentication method (default 1)?${Yellow}"
-PS3="${Green} Enter the number of the desired authentication method: ${Yellow}"
-# Removing non-working options from the menu until they are ready
-# "RADIUS" "OpenID" "CAS"
-options=("MariaDB Database" "LDAP(S)")
-COLUMNS=1
-select opt in "${options[@]}"
-do
-	case $opt in
-		"MariaDB Database"|"") PRIME_AUTH_TYPE="MariaDB"; break;;
-		"LDAP(S)") PRIME_AUTH_TYPE="LDAP"; LDAP_ext_menu; break;;
-		# "RADIUS") PRIME_AUTH_TYPE="RADIUS"; Radius_ext_menu; break;;
-		"OpenID") PRIME_AUTH_TYPE="OpenID"; OpenID_ext_menu; break;;
-		# "CAS") PRIME_AUTH_TYPE="CAS"; CAS_ext_menu; break;;
-		* ) echo "${Green} ${REPLY} is not a valid option, enter the number representing the desired primary authentication method.";;
-		esac
-done
-
-unset COLUMNS
-}
-
-######  2FA EXTENSIONS MENU  #########################################
-secondary_auth_ext_menu () {
-SUB_MENU_TITLE="2FA Extensions Menu"
-
-menu_header
-
-INSTALL_TOTP=false
-INSTALL_DUO=false
-
-# Allows optional selection of a Two Factor Authentication (2FA) method
-echo "${Green} What Guacamole extension should be used as the 2FA authentication method (default 1)?${Yellow}"
-PS3="${Green} Enter the number of the desired authentication method: ${Yellow}"
-# Removing non-working options from the menu until they are ready
-# "DUO"
-options=("None" "TOTP")
-COLUMNS=1
-select opt in "${options[@]}"
-do
-	case $opt in
-		"None"|"") TFA_TYPE="None"; break;;
-		"TOTP") TFA_TYPE="TOTP"; TOTP_ext_menu; break;;
-		# "DUO") TFA_TYPE="DUO"; Duo_ext_menu; break;;
-		* ) echo "${Green} ${REPLY} is not a valid option, enter the number representing the desired 2FA method.";;
-		esac
-done
-
-unset COLUMNS
-}
-
-######  LDAP MENU  ###################################################
-LDAP_ext_menu () {
-INSTALL_LDAP=true
-SUB_MENU_TITLE="LDAP Extension Menu"
-
-menu_header
-
-# Allow selection of LDAPS
-while true; do
-	echo -n "${Green} Use LDAPS instead of LDAP (Requires having the cert from the server copied locally, default: no): ${Yellow}"
-	read SECURE_LDAP
-	case $SECURE_LDAP in
-		[Yy]* ) SECURE_LDAP=true; break;;
-		[Nn]*|"" ) SECURE_LDAP=false; break;;
-		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
-	esac
-done
-
-# Check if LDAPS was selected
-if [ $SECURE_LDAP = true ]; then
-	echo -ne "\n${Green} Enter the LDAP Port (default 636): ${Yellow}"
-		read LDAP_PORT
-		LDAP_PORT=${LDAP_PORT:-636}
-
-	# LDAPS Certificate placeholder values
-	LDAPS_CERT_FN="mycert.cer"
-	LDAPS_CERT_FULL="xNULLx"
-
-	while [ ! -f ${LDAPS_CERT_FULL} ]; do
-		echo -ne "\n${Green} Enter a valid filename of the .cer certificate file (Ex: mycert.cer): ${Yellow}"
-			read LDAPS_CERT_FN
-			LDAPS_CERT_FN=${LDAPS_CERT_FN:-${LDAPS_CERT_FN}}
-		echo -n "${Green} Enter the full path of the dir containing the .cer certificate file (must end with / Ex: /home/me/): ${Yellow}"
-			read LDAPS_CERT_DIR
-			LDAPS_CERT_DIR=${LDAPS_CERT_DIR:-/home/}
-			LDAPS_CERT_FULL=${LDAPS_CERT_DIR}${LDAPS_CERT_FN}
-		if [ ! -f ${LDAPS_CERT_FULL} ]; then
-			echo "${Red} The file/path: ${LDAPS_CERT_FULL} does not exist! Ensure the file is in the directory and try again..."
-		fi
-	done
-
-	echo -ne "\n${Green} Set the password for the CACert Java Keystore, must be 6 or more characters (default ${JKS_CACERT_PASSWD_DEF}): ${Yellow}"
-		read JKS_CACERT_PASSWD
-		JKS_CACERT_PASSWD=${JKS_CACERT_PASSWD:-${JKS_CACERT_PASSWD_DEF}}
-else # Use LDAP not LDAPS
-	echo -ne "\n${Green} Enter the LDAP Port (default 389): ${Yellow}"
-		read LDAP_PORT
-		LDAP_PORT=${LDAP_PORT:-389}
-fi
-
-echo -ne "\n${Green} Enter the LDAP Server Hostname (use the FQDN, Ex: ldaphost.domain.com): ${Yellow}"
-	read LDAP_HOSTNAME
-	LDAP_HOSTNAME=${LDAP_HOSTNAME:-ldaphost.domain.com}
-echo -n "${Green} Enter the LDAP User-Base-DN (Ex: dc=domain,dc=com): ${Yellow}"
-	read LDAP_BASE_DN
-	LDAP_BASE_DN=${LDAP_BASE_DN:-dc=domain,dc=com}
-echo -n "${Green} Enter the LDAP Search-Bind-DN (Ex: cn=user,ou=Admins,dc=domain,dc=com): ${Yellow}"
-	read LDAP_BIND_DN
-	LDAP_BIND_DN=${LDAP_BIND_DN:-cn=user,ou=Admins,dc=domain,dc=com}
-echo -n "${Green} Enter the LDAP Search-Bind-Password: ${Yellow}"
-	read LDAP_BIND_PW
-	LDAP_BIND_PW=${LDAP_BIND_PW:-password}
-echo -n "${Green} Enter the LDAP Username-Attribute (default sAMAccountName): ${Yellow}"
-	read LDAP_UNAME_ATTR
-	LDAP_UNAME_ATTR=${LDAP_UNAME_ATTR:-sAMAccountName}
-
-LDAP_SEARCH_FILTER_DEF="(objectClass=*)"
-echo -n "${Green} Enter a custom LDAP user search filter (default \"${LDAP_SEARCH_FILTER_DEF}\"): ${Yellow}"
-	read LDAP_SEARCH_FILTER
-	LDAP_SEARCH_FILTER=${LDAP_SEARCH_FILTER:-${LDAP_SEARCH_FILTER_DEF}}
-}
-
-######  TOTP MENU  ###################################################
-TOTP_ext_menu () {
-INSTALL_TOTP=true
-SUB_MENU_TITLE="TOTP Extension Menu"
-
-menu_header
-
-echo -n "${Green} Enter the TOTP issuer (default Apache Guacamole): ${Yellow}"
-	read TOTP_ISSUER
-	TOTP_ISSUER=${TOTP_ISSUER:-Apache Guacamole}
-echo -n "${Green} Enter the number of digits to use for TOTP (default 6): ${Yellow}"
-	read TOTP_DIGITS
-	TOTP_DIGITS=${TOTP_DIGITS:-6}
-echo -n "${Green} Enter the TOTP period in seconds (default 30): ${Yellow}"
-	read TOTP_PER
-	TOTP_PER=${TOTP_PER:-30}
-echo -n "${Green} Enter the TOTP mode (default sha1): ${Yellow}"
-	read TOTP_MODE
-	TOTP_MODE=${TOTP_MODE:-sha1}
-}
-
-######  DUO MENU  ####################################################
-Duo_ext_menu () {
-INSTALL_DUO=false
-SUB_MENU_TITLE="DUO Extension Menu"
-
-menu_header
-
-echo "${Red} Duo extension not currently available via this script."
-sleep 3
-}
-
-######  RADIUS MENU  #################################################
-Radius_ext_menu () {
-INSTALL_RADIUS=false
-SUB_MENU_TITLE="RADIUS Extension Menu"
-
-menu_header
-
-echo "${Red} RADIUS extension not currently available via this script."
-sleep 3
-}
-
-######  CAS MENU  ####################################################
-CAS_ext_menu () {
-INSTALL_CAS=false
-SUB_MENU_TITLE="CAS Extension Menu"
-
-menu_header
-
-echo "${Red} CAS extension not currently available via this script."
-sleep 3
 }
 
 ######  OPENID MENU  #################################################
@@ -475,42 +273,6 @@ menu_header
 
 ####o "${Red} CAS extension not currently available via this script."
 sleep 3
-}
-
-#  CUSTOM EXTENSION MENU  #######################################
-cust_ext_menu () {
-SUB_MENU_TITLE="Custom Extension Menu"
-
-menu_header
-
-while true; do
-	echo -n "${Green} Would you like to install a custom Guacamole extensions from a local file (default no)? ${Yellow}"
-	read yn
-	case $yn in
-		[Yy]* )
-			INSTALL_CUST_EXT=true
-
-			# Set placeholder values
-			CUST_FN="myextension.jar"
-			CUST_FULL="xNULLx"
-
-			while [ ! -f ${CUST_FULL} ]; do
-				echo -ne "\n${Green} Enter a valid filename of the .jar extension file (Ex: myextension.jar): ${Yellow}"
-					read CUST_FN
-					CUST_FN=${CUST_FN:-${CUST_FN}}
-				echo -n "${Green} Enter the full path of the dir containing the .jar extension file (must end with / Ex: /home/me/): ${Yellow}"
-					read CUST_DIR
-					CUST_DIR=${CUST_DIR:-/home/}
-					CUST_FULL=${CUST_DIR}${CUST_FN}
-				if [ ! -f ${CUST_FULL} ]; then # Check that full path/name exists, otherwise prompt again
-					echo "${Red} The file/path: ${CUST_FULL} does not exist! Ensure the file is in the directory and try again..."
-				fi
-			done
-			break;;
-		[Nn]*|"" ) INSTALL_CUST_EXT=false; break;;
-		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
-	esac
-done
 }
 
 ######################################################################
@@ -529,7 +291,7 @@ RET_SUM=false
 # List categories/menus to review or change
 echo "${Green} Select a category to review selections: ${Yellow}"
 PS3="${Green} Enter the number of the category to review: ${Yellow}"
-options=("Database" "OpenID" "Passwords" "Primary Authentication Extension" "2FA Extension" "Custom Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
+options=("Database" "OpenID" "Passwords" "Primary Authentication Extension" "Accept and Run Installation" "Cancel and Start Over" "Cancel and Exit Script")
 select opt in "${options[@]}"
 do
 	case $opt in
@@ -537,8 +299,6 @@ do
 		"OpenID") sum_openid; break;;
 		"Passwords") sum_pw; break;;
 		"Primary Authentication Extension") sum_prime_auth_ext; break;;
-		"2FA Extension") sum_secondary_auth_ext; break;;
-		"Custom Extension") sum_cust_ext; break;;
 		"Accept and Run Installation") RUN_INSTALL=true; break;;
 		"Cancel and Start Over") ScriptLoc=$(readlink -f "$0"); exec "$ScriptLoc"; break;;
 		"Cancel and Exit Script") tput sgr0; exit 1; break;;
@@ -675,77 +435,11 @@ done
 sum_menu
 }
 
-######  SELECTED EXTENSIONS SUMMARY  #################################
-sum_secondary_auth_ext () {
-SUB_MENU_TITLE="2FA Extension Summary"
-
-menu_header
-
-echo -e "${Green} 2FA selection: ${Yellow}${TFA_TYPE}\n"
-
-# Check the authentication selection to display proper information for the selection
-case $TFA_TYPE in
-	"None")
-		echo -e "${Yellow}${Bold} -- No form of 2FA will be implemented by this script --${Reset}\n"
-		;;
-	"TOTP")
-		echo "${Green} TOTP issuer: ${Yellow}${TOTP_ISSUER}"
-		echo "${Green} Number of TOTP digits: ${Yellow}${TOTP_DIGITS}"
-		echo "${Green} TOTP period in seconds: ${Yellow}${TOTP_PER}"
-		echo -e "${Green} TOTP mode: ${Yellow}${TOTP_MODE}\n"
-		;;
-	"DUO")
-		echo -e "${Red} DUO cannot currently be installed by this script.\n"
-		;;
-esac
-
-while true; do
-	echo -n "${Green} Would you like to change the 2FA method and properties (default no)? ${Yellow}"
-	read yn
-	case $yn in
-		[Yy]* ) secondary_auth_ext_menu; break;;
-		[Nn]*|"" ) break;;
-		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
-	esac
-done
-
-sum_menu
-}
-
-######  CUSTOM EXTENSION SUMMARY  ####################################
-sum_cust_ext () {
-SUB_MENU_TITLE="Custom Extension Summary"
-
-menu_header
-
-echo -e "${Green} Install a custom Guacamole extension: ${Yellow}${INSTALL_CUST_EXT}\n"
-
-if [ $INSTALL_CUST_EXT = true ]; then
-	echo "${Green} Filename of the .jar extension file: ${Yellow}${CUST_FN}"
-	echo "${Green} Full path of the dir containing the .jar extension file: ${Yellow}${CUST_DIR}"
-	echo -e "${Green} Full file path: ${Yellow}${CUST_FULL}\n"
-fi
-
-while true; do
-	echo -n "${Green} Would you like to change these selections (default no)? ${Yellow}"
-	read yn
-	case $yn in
-		[Yy]* ) cust_ext_menu; break;;
-		[Nn]*|"" ) break;;
-		* ) echo "${Green} Please enter yes or no. ${Yellow}";;
-	esac
-done
-
-sum_menu
-}
-
 ######  MENU EXECUTION  ##############################################
 db_menu
 pw_menu
 openid_menu
 prime_auth_ext_menu
-secondary_auth_ext_menu
-cust_ext_menu
 sum_menu
 
 # Sets file descriptor to 3 for this special echo function and spinner
@@ -901,7 +595,7 @@ fi
 # Install libjpeg-turbo Repo
 {
 	yum install -y wget
-	wget ${LIBJPEG_REPO} -P /etc/yum.repos.d/
+	wget ${LIBJPEG_REPO} -P /etc/yum.repos.d/ --no-check-certificate
 
 	# Exclude beta releases
 	sed -i "s/exclude.*/${LIBJPEG_EXCLUDE}/g" /etc/yum.repos.d/libjpeg-turbo.repo
@@ -953,10 +647,10 @@ s_echo "n" "${Reset}-Installing required packages...    "; spinner
 {
 useradd -m -U -d /opt/tomcat -s /bin/false tomcat || echo "User already exists."
 cd /tmp
-wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.62/bin/apache-tomcat-9.0.62.tar.gz
-tar -xf apache-tomcat-9.0.62.tar.gz
-mv -n apache-tomcat-9.0.62 /opt/tomcat/
-ln -sfn /opt/tomcat/apache-tomcat-9.0.62 /opt/tomcat/latest
+wget https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz
+tar -xf apache-tomcat-${TOMCAT_VER}.tar.gz
+mv -n apache-tomcat-${TOMCAT_VER} /opt/tomcat/
+ln -sfn /opt/tomcat/apache-tomcat-${TOMCAT_VER} /opt/tomcat/latest
 chown -R tomcat: /opt/tomcat
 chmod +x /opt/tomcat/latest/bin/*.sh
 cat <<EOF >/etc/systemd/system/tomcat.service 
@@ -995,17 +689,6 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	{ yum install -y git libtool; } &
 	s_echo "n" "-Installing packages required for git...    "; spinner
 
-	#Install Maven
-	cd /opt
-	{
-		wget ${MAVEN_URL}${MAVEN_BIN}
-		tar -xvzf ${MAVEN_BIN}
-		ln -s ${MAVEN_FN} maven
-		rm -rf /opt/${MAVEN_BIN}
-	} &
-	s_echo "n" "-Installing Apache Maven for git...    "; spinner
-	export PATH=/opt/maven/bin:${PATH}
-	cd ~
 fi
 
 createdirs
@@ -1304,138 +987,7 @@ s_echo "y" "${Bold}Configuring the Java KeyStore...    "; spinner
 } &
 s_echo "y" "${Bold}Enable & Start Tomcat and Guacamole Services...    "; spinner
 
-# Call each Guac extension function for those selected
-if [ $INSTALL_LDAP = true ]; then ldapsetup; fi
-if [ $INSTALL_TOTP = true ]; then totpsetup; fi
-if [ $INSTALL_DUO = true ]; then duosetup; fi
-if [ $INSTALL_RADIUS = true ]; then radiussetup; fi
-if [ $INSTALL_CAS = true ]; then cassetup; fi
-if [ $INSTALL_OPENID = true ]; then openidsetup; fi
-if [ $INSTALL_CUST_EXT = true ]; then custsetup; fi
-
 selinuxsettings
-}
-
-######  LDAP SETUP  ##################################################
-ldapsetup () {
-s_echo "y" "${Bold}Setup the LDAP Extension"
-
-# Append LDAP configuration lines to guacamole.properties
-{ echo "
-# LDAP properties
-ldap-hostname: ${LDAP_HOSTNAME}
-ldap-port: ${LDAP_PORT}" >> /etc/guacamole/${GUAC_CONF}; } &
-s_echo "n" "${Reset}-Updating guacamole.properties file for LDAP...    "; spinner
-
-# LDAPS specific properties
-if [ $SECURE_LDAP = true ]; then
-	{
-		KS_PATH=$(find "/usr/lib/jvm/" -name "cacerts")
-		keytool -storepasswd -new ${JKS_CACERT_PASSWD} -keystore ${KS_PATH} -storepass "changeit" 
-		keytool -importcert -alias "ldaps" -keystore ${KS_PATH} -storepass ${JKS_CACERT_PASSWD} -file ${LDAPS_CERT_FULL} -noprompt
-
-		echo "ldap-encryption-method: ssl" >> /etc/guacamole/${GUAC_CONF}
-	} &
-	s_echo "n" "-Updating guacamole.properties file for LDAPS...    "; spinner
-fi
-
-# Finish appending general LDAP configuration lines to guacamole.properties
-{ echo "ldap-user-base-dn: ${LDAP_BASE_DN}
-ldap-search-bind-dn: ${LDAP_BIND_DN}
-ldap-search-bind-password: ${LDAP_BIND_PW}
-ldap-username-attribute: ${LDAP_UNAME_ATTR}
-ldap-user-search-filter: ${LDAP_SEARCH_FILTER}
-mysql-auto-create-accounts: true" >> /etc/guacamole/${GUAC_CONF}; } &
-s_echo "n" "-Finishing updates to the guacamole.properties file for LDAP...    "; spinner
-
-if [ $GUAC_SOURCE == "Git" ]; then
-	# Copy LDAP Extension to Extensions Directory
-	{ find ./guacamole-client/extensions -name "${GUAC_LDAP}.jar" -exec mv -v {} ${LIB_DIR}extensions/ \;; } &
-	s_echo "n" "-Moving Guacamole LDAP extension to extensions dir...    "; spinner
-else # Stable release
-	# Download LDAP Extension
-	{ wget "${GUAC_URL}binary/${GUAC_LDAP}.tar.gz" -O ${GUAC_LDAP}.tar.gz; } &
-	s_echo "n" "-Downloading LDAP extension...    "; spinner
-
-	# Decompress LDAP Extension
-	{
-		tar xzvf ${GUAC_LDAP}.tar.gz 
-		rm -f ${GUAC_LDAP}.tar.gz
-		mv ${GUAC_LDAP} extension
-	} &
-	s_echo "n" "-Decompressing Guacamole LDAP Extension...    "; spinner
-
-	# Copy LDAP Extension to Extensions Directory
-	{ mv -v extension/${GUAC_LDAP}/${GUAC_LDAP}.jar ${LIB_DIR}extensions/; } &
-	s_echo "n" "-Moving Guacamole LDAP extension to extensions dir...    "; spinner
-fi
-}
-
-######  TOTP SETUP  ##################################################
-totpsetup () {
-s_echo "y" "${Bold}Setup the TOTP Extension"
-
-# Append TOTP configuration lines to guacamole.properties
-{ echo "
-# TOTP properties
-totp-issuer: ${TOTP_ISSUER}
-totp-digits: ${TOTP_DIGITS}
-totp-period: ${TOTP_PER}
-totp-mode: ${TOTP_MODE}" >> /etc/guacamole/${GUAC_CONF}; } &
-s_echo "n" "${Reset}-Updating guacamole.properties file for TOTP...    "; spinner
-
-if [ $GUAC_SOURCE == "Git" ]; then
-   # Copy TOTP Extension to Extensions Directory
-   { find ./guacamole-client/extensions -name "${GUAC_TOTP}.jar" -exec mv -v {} ${LIB_DIR}extensions/ \;; } &
-   s_echo "n" "-Moving Guacamole TOTP extension to extensions dir...    "; spinner
-else # Stable release
-   # Download TOTP Extension
-   { wget "${GUAC_URL}binary/${GUAC_TOTP}.tar.gz" -O ${GUAC_TOTP}.tar.gz; } &
-   s_echo "n" "-Downloading TOTP extension...    "; spinner
-
-   # Decompress TOTP Extension
-   {
-      tar xzvf ${GUAC_TOTP}.tar.gz 
-      rm -f ${GUAC_TOTP}.tar.gz
-      mv ${GUAC_TOTP} extension
-   } &
-   s_echo "n" "-Decompressing Guacamole TOTP Extension...    "; spinner
-
-   # Copy TOTP Extension to Extensions Directory
-   { mv -v extension/${GUAC_TOTP}/${GUAC_TOTP}.jar ${LIB_DIR}extensions/; } &
-   s_echo "n" "-Moving Guacamole TOTP extension to extensions dir...    "; spinner
-fi
-}
-
-######  DUO SETUP  ###################################################
-duosetup () {
-	# Placehold until extension is added
-	echo "duosetup"
-}
-
-######  RADIUS SETUP  ################################################
-radiussetup () {
-	# Placehold until extension is added
-	echo "radiussetup"
-}
-
-######  CAS SETUP  ###################################################
-cassetup () {
-	# Placehold until extension is added
-	echo "cassetup"
-}
-
-######  OpenID SETUP  ################################################
-openidsetup () {
-	# Placehold until extension is added
-	echo "openidsetup"
-}
-
-######  CUSTOM EXTENSION SETUP  ######################################
-custsetup () {
-# Copy Custom Extension to Extensions Directory
-{ mv -v ${CUST_FULL} ${LIB_DIR}extensions/; } &
-s_echo "y" "${Bold}Copying Custom Guacamole Extension to Extensions Dir...    "; spinner
 }
 
 ######  SELINUX SETTINGS  ############################################
@@ -1458,44 +1010,6 @@ selinuxsettings () {
 	semanage fcontext -a -t tomcat_exec_t "/opt/tomcat/latest/lib/${MYSQL_CON}.jar"
 	restorecon -v "/opt/tomcat/latest/lib/${MYSQL_CON}.jar"
 
-	# Guacamole LDAP Extension Context (If selected)
-	if [ $INSTALL_LDAP = true ]; then
-		semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-		restorecon -v "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-	fi
-
-	# Guacamole TOTP Extension Context (If selected)
-	if [ $INSTALL_TOTP = true ]; then
-		# Placehold until extension is added
-		# echo "totp true"
-		semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_TOTP}.jar"
-		restorecon -v "${LIB_DIR}extensions/${GUAC_TOTP}.jar"
-	fi
-
-	# Guacamole Duo Extension Context (If selected)
-	if [ $INSTALL_DUO = true ]; then
-		# Placehold until extension is added
-		echo "duo true"
-		#semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-		#restorecon -v "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-	fi
-
-	# Guacamole RADIUS Extension Context (If selected)
-	if [ $INSTALL_RADIUS = true ]; then
-		# Placehold until extension is added
-		echo "radius true"
-		#semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-		#restorecon -v "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-	fi
-
-	# Guacamole CAS Extension Context (If selected)
-	if [ $INSTALL_CAS = true ]; then
-		# Placehold until extension is added
-		echo "cas true"
-		#semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-		#restorecon -v "${LIB_DIR}extensions/${GUAC_LDAP}.jar"
-	fi
-
 	# Guacamole OpenID Extension Context (If selected)
 	if [ $INSTALL_OPENID = true ]; then
 		# Placehold until extension is added
@@ -1504,11 +1018,6 @@ selinuxsettings () {
         	restorecon -v "/etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar"
 	fi
 
-	# Guacamole Custom Extension Context (If selected)
-	if [ $INSTALL_CUST_EXT = true ]; then
-		semanage fcontext -a -t tomcat_exec_t "${LIB_DIR}extensions/${CUST_FN}"
-		restorecon -v "${LIB_DIR}extensions/${CUST_FN}"
-	fi
 } &
 
 s_echo "y" "${Bold}Setting SELinux Context...    "; spinner
@@ -1584,19 +1093,6 @@ s_echo "n" "-firewall backup file: ${fwbkpfile}"
 
 # Recommendations
 s_echo "y" "${Red}Important${Reset}"
-
-if [ $INSTALL_LDAP = false ]; then
-	#s_echo "n" "-It is highly recommended to create an admin account in Guacamole and delete/disable the default asap!"
-	s_echo "n" "-Please make sure to run the proxy-install.sh script"
-else
-	s_echo "n" "-You should assign at least one AD/LDAP user to have full admin, see the directions on how-to at:"
-	s_echo "n" "${Green} https://github.com/Zer0CoolX/guacamole-install-rhel-7/wiki/LDAP-or-LDAPS-Authentication#important-manual-steps${Reset}"
-	s_echo "n" "-Afterwards, it is highly recommended to delete/disable the default admin account and/or create a uniquely named local admin account asap!"
-
-	if [ $SECURE_LDAP = true ]; then
-		s_echo "n" "-Its highly recommended to remove the LDAPS certificate file from: ${LDAPS_CERT_FULL}"
-	fi
-fi
 
 s_echo "y" "${Green}While not technically required, you should consider a reboot after verifying installation\n${Reset}"
 
