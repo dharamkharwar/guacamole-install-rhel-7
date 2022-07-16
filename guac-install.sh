@@ -22,7 +22,7 @@ set -E
 ######  UNIVERSAL VARIABLES  #########################################
 # USER CONFIGURABLE #
 # Versions
-GUAC_STBL_VER="1.3.0" # Latest stable version of Guac from https://guacamole.apache.org/releases/
+GUAC_STBL_VER="1.4.0" # Latest stable version of Guac from https://guacamole.apache.org/releases/
 MYSQL_CON_VER="8.0.21" # Working stable release of MySQL Connecter J
 TOMCAT_VER="9.0.62"
 
@@ -142,7 +142,7 @@ GUAC_JDBC="guacamole-auth-jdbc-${GUAC_VER}"
 
 
 # OPENID Extension file name
-GUAC_OPENID="guacamole-auth-openid-${GUAC_VER}"
+GUAC_OPENID="guacamole-auth-sso-${GUAC_VER}"
 
 # Dirs and file names
 INSTALL_DIR="/usr/local/src/guacamole/${GUAC_VER}/" # Guacamole installation dir
@@ -164,15 +164,7 @@ echo -e "   ${Bold}***        Source Menu     ***\n"
 echo "   OS: ${Yellow}${OS_NAME} ${MAJOR_VER}.${MINOR_VER} ${MACHINE_ARCH}${Reset}"
 echo -e "   ${Bold}Stable Version: ${Yellow}${GUAC_STBL_VER}${Reset} || ${Bold}Git Version: ${Yellow}${GUAC_GIT_VER}${Reset}\n"
 
-while true; do
-	echo -n "${Green} Pick the desired source to install from (enter 'stable' or 'git', default is 'stable'): ${Yellow}"
-	read GUAC_SOURCE
-	case $GUAC_SOURCE in
-		[Ss]table|"" ) GUAC_SOURCE="Stable"; break;;
-		[Gg][Ii][Tt] ) GUAC_SOURCE="Git"; break;;
-		* ) echo "${Green} Please enter 'stable' or 'git' to select source/version (without quotes)";;
-	esac
-done
+GUAC_SOURCE="Stable"
 
 tput sgr0
 }
@@ -765,8 +757,6 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	s_echo "n" "-Cloning Guacamole Client package from git...    "; spinner
 	downloadmysqlconn
 else # Stable release
-	{ wget "${GUAC_URL}source/${GUAC_SERVER}.tar.gz" -O ${GUAC_SERVER}.tar.gz; } &
-	s_echo "n" "${Reset}-Downloading Guacamole Server package for installation...    "; spinner
 	{ wget "${GUAC_URL}binary/${GUAC_CLIENT}.war" -O ${INSTALL_DIR}client/guacamole.war; } &
 	s_echo "n" "-Downloading Guacamole Client package for installation...    "; spinner
 	{ wget "${GUAC_URL}binary/${GUAC_JDBC}.tar.gz" -O ${GUAC_JDBC}.tar.gz; } &
@@ -779,13 +769,6 @@ else # Stable release
 	s_echo "y" "${Bold}Decompressing Guacamole Packages"
 
 	{
-		tar xzvf ${GUAC_SERVER}.tar.gz
-		rm -f ${GUAC_SERVER}.tar.gz
-		mv -v ${GUAC_SERVER} server
-	} &
-	s_echo "n" "${Reset}-Decompressing Guacamole Server source...    "; spinner
-
-	{
 		tar xzvf ${GUAC_JDBC}.tar.gz
 		rm -f ${GUAC_JDBC}.tar.gz
 		mv -v ${GUAC_JDBC} extension
@@ -796,8 +779,8 @@ else # Stable release
         {
                 tar xzvf ${GUAC_OPENID}.tar.gz
                 rm -f ${GUAC_OPENID}.tar.gz
-                mv -v ${GUAC_OPENID} extension
-                mv -v extension/guacamole-auth-openid-${GUAC_VER}/guacamole-auth-openid-${GUAC_VER}.jar /etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
+                mv -v ${GUAC_OPENID} extension 
+                mv -v extension/guacamole-auth-sso-${GUAC_VER}/openid/guacamole-auth-sso-openid-${GUAC_VER}.jar /etc/guacamole/extensions/guacamole-auth-1-openid-${GUAC_VER}.jar
         } &
         s_echo "n" "-Decompressing Guacamole OpenID extension...    "; spinner
 fi
@@ -821,19 +804,9 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	{ autoreconf -fi; } &
 	s_echo "n" "${Reset}-Guacamole Server compile prep...    "; spinner
 else # Stable release
-	cd server
+	yum install guacd -y &
+        s_echo "n" "-Installing Guacamole Server...    "; spinner
 fi
-
-# Compile Guacamole Server
-{ ./configure --with-systemd-dir=/etc/systemd/system; } &
-s_echo "n" "${Reset}-Compiling Guacamole Server Stage 1 of 4...    "; spinner
-{ make; } &
-s_echo "n" "-Compiling Guacamole Server Stage 2 of 4...    "; spinner
-{ make install; } &
-s_echo "n" "-Compiling Guacamole Server Stage 3 of 4...    "; spinner
-{ ldconfig; } &
-s_echo "n" "-Compiling Guacamole Server Stage 4 of 4...    "; spinner
-cd ..
 
 installguacclient
 }
@@ -902,18 +875,6 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	{ find ./guacamole-client/extensions -name "guacamole-auth-jdbc-mysql-${GUAC_VER}.jar" -exec mv -v {} ${LIB_DIR}extensions/ \;; } &
 	s_echo "n" "-Moving Guacamole JDBC extension to extensions dir...    "; spinner
 fi
-
-# Setup guacd user, group and permissions
-{
-	# Create a user and group for guacd with a home folder but no login
-        groupadd ${GUACD_USER} || echo "Group already exists."
-	# The guacd user is created as a service account, no login but does get a home dir as needed by freerdp
-    	useradd -r ${GUACD_USER} -m -s "/bin/nologin" -g ${GUACD_USER} -c ${GUACD_USER} || echo "User already exists."
-
-	# Set the user that runs the guacd service
-	sed -i "s/User=daemon/User=${GUACD_USER}/g" /etc/systemd/system/guacd.service
-} &
-s_echo "n" "-Setup guacd user...    "; spinner
 
 appconfigs
 }
