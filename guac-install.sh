@@ -133,6 +133,7 @@ if [ $GUAC_SOURCE == "Git" ]; then
 else # Stable release
 	GUAC_VER=${GUAC_STBL_VER}
 	GUAC_URL="https://apache.org/dyn/closer.cgi?action=download&filename=guacamole/${GUAC_VER}/"
+	GUAC_CLIENT_URL="https://dlcdn.apache.org/guacamole/${GUAC_VER}/"
 	GUAC_SERVER="guacamole-server-${GUAC_VER}"
 	GUAC_CLIENT="guacamole-${GUAC_VER}"
 fi
@@ -757,7 +758,7 @@ if [ $GUAC_SOURCE == "Git" ]; then
 	s_echo "n" "-Cloning Guacamole Client package from git...    "; spinner
 	downloadmysqlconn
 else # Stable release
-	{ wget "${GUAC_URL}binary/${GUAC_CLIENT}.war" -O ${INSTALL_DIR}client/guacamole.war; } &
+	{ wget "${GUAC_CLIENT_URL}binary/${GUAC_CLIENT}.war" -O ${INSTALL_DIR}client/guacamole.war; } &
 	s_echo "n" "-Downloading Guacamole Client package for installation...    "; spinner
 	{ wget "${GUAC_URL}binary/${GUAC_JDBC}.tar.gz" -O ${GUAC_JDBC}.tar.gz; } &
 	s_echo "n" "-Downloading Guacamole JDBC Extension package for installation...    "; spinner
